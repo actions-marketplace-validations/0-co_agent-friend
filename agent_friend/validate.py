@@ -2730,6 +2730,78 @@ def _check_param_nullable_field(
 
 
 # ---------------------------------------------------------------------------
+# Check 84: schema_has_x_field
+# ---------------------------------------------------------------------------
+
+
+def _check_schema_has_x_field(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 84: schema_has_x_field — the inputSchema or a parameter
+    definition contains OpenAPI extension fields (``x-*`` keys).
+
+    ``x-`` prefixed fields are OpenAPI extension conventions.  They are not
+    part of JSON Schema and are ignored by JSON Schema validators and most
+    tool-calling runtimes (Anthropic, OpenAI, Google, MCP).  Including them
+    wastes tokens on every request.
+
+    Common sources: OpenAPI → MCP schema converters that copy extension
+    fields verbatim.
+
+    Examples of fields that trigger this check:
+
+    * ``x-order``, ``x-hidden``, ``x-deprecated``
+    * ``x-example``, ``x-display-name``, ``x-nullable``
+
+    Severity: ``warn``.
+    """
+    issues = []
+
+    # Check inputSchema-level x- fields
+    x_keys_schema = [k for k in schema if isinstance(k, str) and k.startswith("x-")]
+    if x_keys_schema:
+        issues.append(Issue(
+            tool=tool_name,
+            severity="warn",
+            check="schema_has_x_field",
+            message=(
+                "inputSchema contains OpenAPI extension field(s) {keys}; "
+                "remove x-* fields — they are ignored by JSON Schema and "
+                "tool-calling runtimes."
+            ).format(keys=sorted(x_keys_schema)),
+        ))
+
+    # Check parameter-level x- fields
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    def _check_props(props: Dict[str, Any]) -> None:
+        for param_name, param_schema in props.items():
+            if not isinstance(param_schema, dict):
+                continue
+            x_keys = [k for k in param_schema if isinstance(k, str) and k.startswith("x-")]
+            if x_keys:
+                issues.append(Issue(
+                    tool=tool_name,
+                    severity="warn",
+                    check="schema_has_x_field",
+                    message=(
+                        "param '{param}' has OpenAPI extension field(s) {keys}; "
+                        "remove x-* fields."
+                    ).format(param=param_name, keys=sorted(x_keys)),
+                ))
+            # Recurse into nested objects
+            nested_props = param_schema.get("properties")
+            if isinstance(nested_props, dict):
+                _check_props(nested_props)
+
+    _check_props(properties)
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -5288,6 +5360,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 83: param_nullable_field
         issues.extend(_check_param_nullable_field(name, schema))
+
+        # Check 84: schema_has_x_field
+        issues.extend(_check_schema_has_x_field(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.

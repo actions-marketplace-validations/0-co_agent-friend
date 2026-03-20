@@ -76,6 +76,7 @@ from agent_friend.validate import (
     _check_param_description_says_ignored,
     _check_enum_boolean_string,
     _check_param_nullable_field,
+    _check_schema_has_x_field,
 )
 
 
@@ -9588,3 +9589,92 @@ class TestParamNullableField:
         }
         issues = _check_param_nullable_field("tool", schema)
         assert len(issues) == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests for Check 84: schema_has_x_field
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaHasXField:
+    """Tests for Check 84: schema_has_x_field."""
+
+    def test_x_order_in_schema_fires(self):
+        schema = {
+            "type": "object",
+            "x-order": 1,
+            "properties": {"name": {"type": "string", "description": "Name."}},
+        }
+        issues = _check_schema_has_x_field("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "schema_has_x_field"
+        assert issues[0].severity == "warn"
+
+    def test_x_field_in_param_fires(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "Status.",
+                    "x-deprecated": True,
+                },
+            },
+        }
+        issues = _check_schema_has_x_field("tool", schema)
+        assert len(issues) == 1
+        assert "status" in issues[0].message
+
+    def test_multiple_x_fields_one_issue(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "description": "Mode.",
+                    "x-hidden": True,
+                    "x-order": 2,
+                },
+            },
+        }
+        issues = _check_schema_has_x_field("tool", schema)
+        assert len(issues) == 1
+
+    def test_clean_schema_passes(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name."},
+            },
+        }
+        issues = _check_schema_has_x_field("tool", schema)
+        assert issues == []
+
+    def test_no_properties_passes(self):
+        issues = _check_schema_has_x_field("tool", {"type": "object"})
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_schema_has_x_field("tool", {})
+        assert issues == []
+
+    def test_nested_x_field_fires(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "options": {
+                    "type": "object",
+                    "description": "Options.",
+                    "properties": {
+                        "timeout": {
+                            "type": "integer",
+                            "description": "Timeout.",
+                            "x-example": 30,
+                        },
+                    },
+                },
+            },
+        }
+        issues = _check_schema_has_x_field("tool", schema)
+        assert len(issues) == 1
+        assert "timeout" in issues[0].message
