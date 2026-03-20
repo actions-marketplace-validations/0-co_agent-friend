@@ -2429,6 +2429,55 @@ def _check_param_name_is_reserved_word(
 
 
 # ---------------------------------------------------------------------------
+# Check 102: tool_name_too_generic
+# ---------------------------------------------------------------------------
+
+_GENERIC_TOOL_NAMES = frozenset({
+    "run", "execute", "process", "call", "invoke", "do", "handle",
+    "perform", "trigger", "fire", "dispatch", "send", "submit",
+    "action", "task", "job", "work", "operation",
+})
+
+
+def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
+    """Check 102: tool_name_too_generic — tool name is a single generic verb
+    that gives no information about what the tool actually does.
+
+    Names like ``run``, ``execute``, ``process``, ``call``, ``invoke`` are
+    meaningless without context.  The LLM cannot distinguish between tools
+    with these names, and users reading the schema learn nothing about the
+    tool's purpose::
+
+        # bad — what does it run? what does it execute?
+        "name": "run"
+        "name": "execute"
+
+        # good — verb + object pair
+        "name": "run_tests"
+        "name": "execute_query"
+
+    Fires when the tool name (after stripping underscores/hyphens) is a
+    single generic word with no additional qualifier.
+
+    Severity: ``warn``.
+    """
+    normalized = tool_name.lower().strip("_-")
+    # Check if the whole name (no underscores) is a generic verb
+    if normalized in _GENERIC_TOOL_NAMES:
+        return Issue(
+            tool=tool_name,
+            severity="warn",
+            check="tool_name_too_generic",
+            message=(
+                "tool name '{name}' is too generic — add an object to "
+                "clarify what it operates on (e.g., '{name}_query', "
+                "'{name}_command')."
+            ).format(name=tool_name),
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Check 101: param_uses_schema_ref
 # ---------------------------------------------------------------------------
 
@@ -6249,6 +6298,11 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 101: param_uses_schema_ref
         issues.extend(_check_param_uses_schema_ref(name, schema))
+
+        # Check 102: tool_name_too_generic
+        issue = _check_tool_name_too_generic(name)
+        if issue is not None:
+            issues.append(issue)
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

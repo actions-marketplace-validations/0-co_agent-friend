@@ -94,6 +94,7 @@ from agent_friend.validate import (
     _check_description_has_internal_path,
     _check_param_accepts_secret_no_format,
     _check_param_uses_schema_ref,
+    _check_tool_name_too_generic,
 )
 
 
@@ -10572,3 +10573,39 @@ class TestParamUsesSchemaRef:
     def test_empty_schema_passes(self):
         issues = _check_param_uses_schema_ref("tool", {})
         assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 102: tool_name_too_generic
+# ---------------------------------------------------------------------------
+
+
+class TestToolNameTooGeneric:
+    """Tests for _check_tool_name_too_generic (Check 102)."""
+
+    def test_run_fires(self):
+        issue = _check_tool_name_too_generic("run")
+        assert issue is not None
+        assert issue.check == "tool_name_too_generic"
+        assert issue.severity == "warn"
+
+    def test_execute_fires(self):
+        issue = _check_tool_name_too_generic("execute")
+        assert issue is not None
+
+    def test_process_fires(self):
+        issue = _check_tool_name_too_generic("process")
+        assert issue is not None
+
+    def test_run_tests_passes(self):
+        assert _check_tool_name_too_generic("run_tests") is None
+
+    def test_execute_query_passes(self):
+        assert _check_tool_name_too_generic("execute_query") is None
+
+    def test_get_user_passes(self):
+        assert _check_tool_name_too_generic("get_user") is None
+
+    def test_search_passes(self):
+        # "search" alone is specific enough — not in our generic list
+        assert _check_tool_name_too_generic("search") is None
