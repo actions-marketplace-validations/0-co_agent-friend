@@ -2478,6 +2478,73 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 135: description_has_html_entity
+# ---------------------------------------------------------------------------
+
+_HTML_ENTITY_RE = re.compile(
+    r"&(?:[a-zA-Z]{2,8}|#\d{1,6}|#x[0-9a-fA-F]{1,6});",
+    re.IGNORECASE,
+)
+
+
+def _check_description_has_html_entity(
+    tool_name: str,
+    obj: Dict[str, Any],
+    schema: Dict[str, Any],
+    fmt: str,
+) -> List[Issue]:
+    """Check 135: description_has_html_entity — a tool or parameter description
+    contains HTML character entities such as ``&lt;``, ``&gt;``, ``&amp;``,
+    ``&nbsp;``, or numeric references like ``&#123;``.
+
+    These are encoding artifacts — the developer likely copy-pasted HTML
+    content.  LLMs receive them as literal character sequences, wasting
+    tokens and reducing readability::
+
+        # bad — HTML entities don't render in LLM context
+        {"description": "Returns &lt;status&gt; &amp; &lt;message&gt;."}
+
+        # good — plain text
+        {"description": "Returns status and message."}
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    tool_desc = _get_tool_description(obj, fmt)
+    if isinstance(tool_desc, str) and _HTML_ENTITY_RE.search(tool_desc):
+        issues.append(
+            Issue(
+                tool=tool_name,
+                severity="warn",
+                check="description_has_html_entity",
+                message=(
+                    "tool '{name}' description contains HTML entities — "
+                    "use plain text instead."
+                ).format(name=tool_name),
+            )
+        )
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        for param, pschema in props.items():
+            if not isinstance(pschema, dict):
+                continue
+            desc = pschema.get("description", "")
+            if isinstance(desc, str) and _HTML_ENTITY_RE.search(desc):
+                issues.append(
+                    Issue(
+                        tool=tool_name,
+                        severity="warn",
+                        check="description_has_html_entity",
+                        message=(
+                            "tool '{name}' param '{param}' description "
+                            "contains HTML entities — use plain text instead."
+                        ).format(name=tool_name, param=param),
+                    )
+                )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 134: enum_too_many_values
 # ---------------------------------------------------------------------------
 
@@ -8219,6 +8286,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 134: enum_too_many_values
         issues.extend(_check_enum_too_many_values(name, schema))
+
+        # Check 135: description_has_html_entity
+        issues.extend(_check_description_has_html_entity(name, raw_obj, schema, fmt))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

@@ -127,6 +127,7 @@ from agent_friend.validate import (
     _check_param_min_equals_max,
     _check_object_additional_properties_redundant,
     _check_enum_too_many_values,
+    _check_description_has_html_entity,
 )
 
 
@@ -12101,4 +12102,58 @@ class TestEnumTooManyValues:
 
     def test_empty_schema_passes(self):
         issues = _check_enum_too_many_values("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 135: description_has_html_entity
+# ---------------------------------------------------------------------------
+
+class TestDescriptionHasHtmlEntity:
+    def _run(self, tool_desc=None, param_desc=None):
+        obj = {}
+        if tool_desc is not None:
+            obj["description"] = tool_desc
+        schema = {}
+        if param_desc is not None:
+            schema["properties"] = {"x": {"type": "string", "description": param_desc}}
+        return _check_description_has_html_entity("tool", obj, schema, "mcp")
+
+    def test_amp_entity_fires(self):
+        issues = self._run(tool_desc="Returns status &amp; message.")
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_html_entity"
+        assert issues[0].severity == "warn"
+
+    def test_lt_gt_fires(self):
+        issues = self._run(tool_desc="Returns &lt;status&gt;.")
+        assert len(issues) == 1
+
+    def test_nbsp_fires(self):
+        issues = self._run(tool_desc="Value&nbsp;required.")
+        assert len(issues) == 1
+
+    def test_numeric_entity_fires(self):
+        issues = self._run(tool_desc="Check &#123; braces &#125;.")
+        assert len(issues) == 1
+
+    def test_hex_entity_fires(self):
+        issues = self._run(tool_desc="Emoji &#x1F600;.")
+        assert len(issues) == 1
+
+    def test_param_desc_entity_fires(self):
+        issues = self._run(param_desc="Value &gt; 0.")
+        assert len(issues) == 1
+        assert "x" in issues[0].message
+
+    def test_plain_text_passes(self):
+        issues = self._run(tool_desc="Returns status and message.")
+        assert issues == []
+
+    def test_ampersand_without_semicolon_passes(self):
+        issues = self._run(tool_desc="Tom & Jerry")
+        assert issues == []
+
+    def test_empty_passes(self):
+        issues = self._run(tool_desc="")
         assert issues == []
