@@ -2478,6 +2478,53 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 124: param_name_starts_with_underscore
+# ---------------------------------------------------------------------------
+
+
+def _check_param_name_starts_with_underscore(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 124: param_name_starts_with_underscore — a parameter name starts
+    with an underscore (``_id``, ``_type``, ``_internal``).
+
+    Leading underscores indicate private or internal members in Python and
+    JavaScript conventions.  They should not appear in MCP tool schema
+    parameter names, which are part of the public API surface::
+
+        # bad — leading underscore suggests internal detail
+        {"_id": {"type": "string", ...}}
+        {"_type": {"type": "string", ...}}
+        {"_internal_flag": {"type": "boolean", ...}}
+
+        # good — public names
+        {"id": {"type": "string", ...}}
+        {"type": {"type": "string", ...}}
+        {"debug_mode": {"type": "boolean", ...}}
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name in properties:
+        if param_name.startswith("_"):
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="param_name_starts_with_underscore",
+                message=(
+                    "param '{param}' starts with an underscore — "
+                    "leading underscores suggest private/internal fields "
+                    "and should not appear in public API schemas."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
 # Check 123: param_name_has_double_underscore
 # ---------------------------------------------------------------------------
 
@@ -7562,6 +7609,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 123: param_name_has_double_underscore
         issues.extend(_check_param_name_has_double_underscore(name, schema))
+
+        # Check 124: param_name_starts_with_underscore
+        issues.extend(_check_param_name_starts_with_underscore(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

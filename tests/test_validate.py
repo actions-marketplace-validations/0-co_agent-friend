@@ -116,6 +116,7 @@ from agent_friend.validate import (
     _check_param_name_all_uppercase,
     _check_required_param_not_in_properties,
     _check_param_name_has_double_underscore,
+    _check_param_name_starts_with_underscore,
 )
 
 
@@ -11630,4 +11631,44 @@ class TestParamNameHasDoubleUnderscore:
 
     def test_empty_schema_passes(self):
         issues = _check_param_name_has_double_underscore("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 124: param_name_starts_with_underscore
+# ---------------------------------------------------------------------------
+
+
+class TestParamNameStartsWithUnderscore:
+    """Tests for _check_param_name_starts_with_underscore (Check 124)."""
+
+    @staticmethod
+    def _schema(*param_names: str) -> dict:
+        return {
+            "type": "object",
+            "properties": {n: {"type": "string", "description": "A param."} for n in param_names},
+        }
+
+    def test_single_underscore_prefix_fires(self):
+        issues = _check_param_name_starts_with_underscore("tool", self._schema("_id"))
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_starts_with_underscore"
+        assert issues[0].severity == "warn"
+
+    def test_longer_underscore_prefix_fires(self):
+        issues = _check_param_name_starts_with_underscore("tool", self._schema("_internal_flag"))
+        assert len(issues) == 1
+        assert "_internal_flag" in issues[0].message
+
+    def test_double_underscore_prefix_fires(self):
+        # Double underscore also starts with underscore
+        issues = _check_param_name_starts_with_underscore("tool", self._schema("__type"))
+        assert len(issues) == 1
+
+    def test_normal_name_passes(self):
+        issues = _check_param_name_starts_with_underscore("tool", self._schema("id", "type_name"))
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_starts_with_underscore("tool", {})
         assert issues == []
