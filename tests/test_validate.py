@@ -106,6 +106,7 @@ from agent_friend.validate import (
     _check_param_name_ends_with_type,
     _check_enum_duplicate_values,
     _check_name_uses_camelcase,
+    _check_name_starts_with_uppercase,
 )
 
 
@@ -11150,4 +11151,45 @@ class TestNameUsesCamelcase:
 
     def test_empty_schema_passes(self):
         issues = _check_name_uses_camelcase("get_user", {}, {}, "mcp")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 114: name_starts_with_uppercase
+# ---------------------------------------------------------------------------
+
+
+class TestNameStartsWithUppercase:
+    """Tests for _check_name_starts_with_uppercase (Check 114)."""
+
+    @staticmethod
+    def _schema(*param_names: str) -> dict:
+        return {
+            "type": "object",
+            "properties": {n: {"type": "string", "description": "A param."} for n in param_names},
+        }
+
+    def test_uppercase_tool_name_fires(self):
+        issues = _check_name_starts_with_uppercase("GetUser", self._schema("id"))
+        tool_issues = [i for i in issues if "tool name" in i.message]
+        assert len(tool_issues) == 1
+        assert tool_issues[0].check == "name_starts_with_uppercase"
+        assert tool_issues[0].severity == "error"
+
+    def test_uppercase_param_fires(self):
+        issues = _check_name_starts_with_uppercase("get_user", self._schema("UserId"))
+        param_issues = [i for i in issues if "param" in i.message]
+        assert len(param_issues) == 1
+        assert "UserId" in param_issues[0].message
+
+    def test_screaming_snake_tool_fires(self):
+        issues = _check_name_starts_with_uppercase("MAX_RETRIES", {})
+        assert len(issues) == 1
+
+    def test_lowercase_tool_passes(self):
+        issues = _check_name_starts_with_uppercase("get_user", self._schema("user_id"))
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_name_starts_with_uppercase("get_user", {})
         assert issues == []

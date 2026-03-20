@@ -2478,6 +2478,60 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 114: name_starts_with_uppercase
+# ---------------------------------------------------------------------------
+
+
+def _check_name_starts_with_uppercase(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 114: name_starts_with_uppercase — a tool name or parameter name
+    starts with an uppercase letter (PascalCase or SCREAMING_SNAKE_CASE style).
+
+    MCP tool and parameter names must be lowercase.  Names like ``GetUser``,
+    ``CreateItem``, or ``MAX_RETRIES`` violate the naming convention and may
+    cause compatibility issues with clients that validate name format::
+
+        # bad — starts with uppercase
+        tool name: GetUser, CreateItem, MAX_RETRIES
+        param name: UserId, Format
+
+        # good — starts with lowercase
+        tool name: get_user, create_item
+        param name: user_id, format
+
+    Severity: ``error``.
+    """
+    issues = []
+
+    if tool_name and tool_name[0].isupper():
+        issues.append(Issue(
+            tool=tool_name,
+            severity="error",
+            check="name_starts_with_uppercase",
+            message=(
+                "tool name '{name}' starts with an uppercase letter — "
+                "MCP tool names must be lowercase snake_case."
+            ).format(name=tool_name),
+        ))
+
+    properties = schema.get("properties", {})
+    if isinstance(properties, dict):
+        for param_name in properties:
+            if param_name and param_name[0].isupper():
+                issues.append(Issue(
+                    tool=tool_name,
+                    severity="error",
+                    check="name_starts_with_uppercase",
+                    message=(
+                        "param '{param}' starts with an uppercase letter — "
+                        "MCP parameter names must be lowercase."
+                    ).format(param=param_name),
+                ))
+    return issues
+
+
 # Check 113: name_uses_camelcase
 # ---------------------------------------------------------------------------
 
@@ -6982,6 +7036,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 113: name_uses_camelcase
         issues.extend(_check_name_uses_camelcase(name, raw_obj, schema, fmt))
+
+        # Check 114: name_starts_with_uppercase
+        issues.extend(_check_name_starts_with_uppercase(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
