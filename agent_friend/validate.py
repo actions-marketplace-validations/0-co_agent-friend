@@ -2478,6 +2478,73 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 113: name_uses_camelcase
+# ---------------------------------------------------------------------------
+
+_CAMELCASE_RE = re.compile(r"[a-z][A-Z]")
+
+
+def _check_name_uses_camelcase(
+    tool_name: str,
+    obj: Dict[str, Any],
+    schema: Dict[str, Any],
+    fmt: str,
+) -> List[Issue]:
+    """Check 113: name_uses_camelcase — a tool or parameter name uses
+    camelCase style instead of the MCP-recommended snake_case.
+
+    MCP tool and parameter names should use ``snake_case`` (lowercase words
+    joined by underscores).  camelCase names (``userId``, ``maxRetries``,
+    ``createdAt``) are idiomatic in JavaScript/Java but inconsistent with
+    the MCP naming convention::
+
+        # bad — camelCase names
+        tool name: getUserById
+        param name: userId, maxRetries, createdAt
+
+        # good — snake_case names
+        tool name: get_user_by_id
+        param name: user_id, max_retries, created_at
+
+    Severity: ``warn``.
+    """
+    issues = []
+
+    # Check tool name
+    if _CAMELCASE_RE.search(tool_name):
+        issues.append(Issue(
+            tool=tool_name,
+            severity="warn",
+            check="name_uses_camelcase",
+            message=(
+                "tool name '{name}' uses camelCase — use snake_case instead "
+                "(e.g., '{snake}')."
+            ).format(
+                name=tool_name,
+                snake=re.sub(r"([a-z])([A-Z])", r"\1_\2", tool_name).lower(),
+            ),
+        ))
+
+    # Check param names
+    properties = schema.get("properties", {})
+    if isinstance(properties, dict):
+        for param_name in properties:
+            if _CAMELCASE_RE.search(param_name):
+                issues.append(Issue(
+                    tool=tool_name,
+                    severity="warn",
+                    check="name_uses_camelcase",
+                    message=(
+                        "param '{param}' uses camelCase — use snake_case "
+                        "instead (e.g., '{snake}')."
+                    ).format(
+                        param=param_name,
+                        snake=re.sub(r"([a-z])([A-Z])", r"\1_\2", param_name).lower(),
+                    ),
+                ))
+    return issues
+
+
 # Check 112: enum_duplicate_values
 # ---------------------------------------------------------------------------
 
@@ -6912,6 +6979,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 112: enum_duplicate_values
         issues.extend(_check_enum_duplicate_values(name, schema))
+
+        # Check 113: name_uses_camelcase
+        issues.extend(_check_name_uses_camelcase(name, raw_obj, schema, fmt))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
