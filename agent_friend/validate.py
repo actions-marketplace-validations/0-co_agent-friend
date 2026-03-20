@@ -2478,6 +2478,58 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 137: required_param_null_default
+# ---------------------------------------------------------------------------
+
+
+def _check_required_param_null_default(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 137: required_param_null_default — a required parameter has
+    ``default: null``.
+
+    A required parameter means the caller **must** supply a value.  Setting
+    ``default: null`` implies the server will substitute ``null`` when the
+    value is absent — contradicting the ``required`` constraint::
+
+        # bad — if null is the fallback, why is it required?
+        {"required": ["user_id"], "properties": {"user_id": {"default": null}}}
+
+        # good — remove the required entry or remove the null default
+        {"properties": {"user_id": {"type": "string"}}}  # truly required
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+    required = schema.get("required", [])
+    if not isinstance(required, list):
+        return issues
+    for param_name in required:
+        param_schema = properties.get(param_name)
+        if not isinstance(param_schema, dict):
+            continue
+        if "default" in param_schema and param_schema["default"] is None:
+            issues.append(
+                Issue(
+                    tool=tool_name,
+                    severity="warn",
+                    check="required_param_null_default",
+                    message=(
+                        "tool '{name}' required param '{param}' has "
+                        "'default: null' — if null is the fallback the param "
+                        "is not truly required; remove it from 'required' or "
+                        "remove the null default."
+                    ).format(name=tool_name, param=param_name),
+                )
+            )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 136: param_plural_name_not_array
 # ---------------------------------------------------------------------------
 
@@ -8350,6 +8402,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 136: param_plural_name_not_array
         issues.extend(_check_param_plural_name_not_array(name, schema))
+
+        # Check 137: required_param_null_default
+        issues.extend(_check_required_param_null_default(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

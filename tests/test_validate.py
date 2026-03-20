@@ -129,6 +129,7 @@ from agent_friend.validate import (
     _check_enum_too_many_values,
     _check_description_has_html_entity,
     _check_param_plural_name_not_array,
+    _check_required_param_null_default,
 )
 
 
@@ -12199,4 +12200,49 @@ class TestParamPluralNameNotArray:
 
     def test_empty_schema_passes(self):
         issues = _check_param_plural_name_not_array("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 137: required_param_null_default
+# ---------------------------------------------------------------------------
+
+class TestRequiredParamNullDefault:
+    def test_required_null_default_fires(self):
+        schema = {
+            "required": ["user_id"],
+            "properties": {"user_id": {"type": "string", "default": None}},
+        }
+        issues = _check_required_param_null_default("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "required_param_null_default"
+        assert issues[0].severity == "warn"
+        assert "user_id" in issues[0].message
+
+    def test_required_non_null_default_passes(self):
+        schema = {
+            "required": ["mode"],
+            "properties": {"mode": {"type": "string", "default": "fast"}},
+        }
+        issues = _check_required_param_null_default("tool", schema)
+        assert issues == []
+
+    def test_optional_null_default_passes(self):
+        schema = {
+            "required": [],
+            "properties": {"mode": {"type": "string", "default": None}},
+        }
+        issues = _check_required_param_null_default("tool", schema)
+        assert issues == []
+
+    def test_required_no_default_passes(self):
+        schema = {
+            "required": ["user_id"],
+            "properties": {"user_id": {"type": "string"}},
+        }
+        issues = _check_required_param_null_default("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_required_param_null_default("tool", {})
         assert issues == []
