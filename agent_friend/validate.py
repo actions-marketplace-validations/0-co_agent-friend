@@ -2475,6 +2475,76 @@ def _check_description_has_example(
 
 
 # ---------------------------------------------------------------------------
+# Check 80: description_lists_enum_values
+# ---------------------------------------------------------------------------
+
+_LISTS_ENUM_PATTERNS = _re.compile(
+    r"\bone of\b[^.]{0,60}['\"`]"          # one of 'x', 'y'
+    r"|\bmust be\b[^.]{0,40}['\"`]"         # must be 'x' or 'y'
+    r"|\bvalid values?\b"                    # valid value(s): ...
+    r"|\bpossible values?\b"                 # possible value(s): ...
+    r"|\baccepted values?\b"                 # accepted value(s): ...
+    r"|\bsupported values?\b"               # supported value(s): ...
+    r"|\bcan be\b[^.]{0,40}['\"`]"          # can be 'x' or 'y'
+    r"|\beither\b[^.]{0,40}['\"`]"          # either 'x' or 'y'
+    r"|\ballowed values?\b"                  # allowed value(s): ...
+    r"|\buse ['\"`][a-z_]+['\"`] for\b",    # use 'x' for ..., use 'y' for ...
+    _re.IGNORECASE,
+)
+
+
+def _check_description_lists_enum_values(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 80: description_lists_enum_values — a parameter description
+    explicitly enumerates valid values instead of using a JSON Schema
+    ``enum`` field.
+
+    When a parameter only accepts a finite set of values, the schema should
+    declare an ``enum`` so the model receives a formal constraint::
+
+        # bad — valid values buried in prose
+        {"type": "string", "description": "Sort order. One of 'asc', 'desc'."}
+
+        # good — explicit constraint, no token waste
+        {"type": "string", "enum": ["asc", "desc"], "description": "Sort order."}
+
+    This check fires on non-enum params whose descriptions contain phrases
+    like "one of", "must be", "valid values:", "possible values:", "can be",
+    "either", "allowed values:", etc.
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        # Skip if an enum is already declared
+        if "enum" in param_schema:
+            continue
+        desc = param_schema.get("description", "")
+        if not isinstance(desc, str) or not desc:
+            continue
+        if _LISTS_ENUM_PATTERNS.search(desc):
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="description_lists_enum_values",
+                message=(
+                    "param '{param}' description lists valid values in prose "
+                    "(one of / must be / valid values / etc.); declare an "
+                    "'enum' field instead."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -5021,6 +5091,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 79: description_has_example
         issues.extend(_check_description_has_example(name, schema))
+
+        # Check 80: description_lists_enum_values
+        issues.extend(_check_description_lists_enum_values(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.

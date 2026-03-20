@@ -72,6 +72,7 @@ from agent_friend.validate import (
     _check_tool_name_uses_hyphen,
     _check_param_name_uses_hyphen,
     _check_description_has_example,
+    _check_description_lists_enum_values,
 )
 
 
@@ -9299,3 +9300,88 @@ class TestDescriptionHasExample:
         """'like' in descriptions is only flagged when followed by a quote."""
         issues = _check_description_has_example("tool", self._schema("key", "Act like a filter key."))
         assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for Check 80: description_lists_enum_values
+# ---------------------------------------------------------------------------
+
+
+class TestDescriptionListsEnumValues:
+    """Tests for Check 80: description_lists_enum_values."""
+
+    def _schema(self, param, desc):
+        return {
+            "type": "object",
+            "properties": {
+                param: {"type": "string", "description": desc},
+            },
+        }
+
+    def test_one_of_fires(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("order", "Sort order. One of 'asc', 'desc'."))
+        assert len(issues) == 1
+        assert issues[0].check == "description_lists_enum_values"
+        assert issues[0].severity == "warn"
+
+    def test_must_be_fires(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("format", "Output format. Must be 'json' or 'xml'."))
+        assert len(issues) == 1
+
+    def test_valid_values_fires(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("status", "Job status. Valid values: pending, running, done."))
+        assert len(issues) == 1
+
+    def test_possible_values_fires(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("level", "Log level. Possible values: debug, info, warn, error."))
+        assert len(issues) == 1
+
+    def test_can_be_fires(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("mode", "Operation mode. Can be 'read' or 'write'."))
+        assert len(issues) == 1
+
+    def test_either_fires(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("dir", "Sort direction. Either 'asc' or 'desc'."))
+        assert len(issues) == 1
+
+    def test_allowed_values_fires(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("type", "Resource type. Allowed values: user, group, org."))
+        assert len(issues) == 1
+
+    def test_already_has_enum_passes(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "order": {
+                    "type": "string",
+                    "enum": ["asc", "desc"],
+                    "description": "Sort order. One of 'asc', 'desc'.",
+                },
+            },
+        }
+        issues = _check_description_lists_enum_values("tool", schema)
+        assert issues == []
+
+    def test_clean_description_passes(self):
+        issues = _check_description_lists_enum_values("tool", self._schema("name", "The user's full name."))
+        assert issues == []
+
+    def test_no_properties_passes(self):
+        issues = _check_description_lists_enum_values("tool", {"type": "object"})
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_description_lists_enum_values("tool", {})
+        assert issues == []
+
+    def test_multiple_params_each_flagged(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "order": {"type": "string", "description": "One of 'asc', 'desc'."},
+                "format": {"type": "string", "description": "Must be 'json' or 'xml'."},
+                "name": {"type": "string", "description": "User name."},
+            },
+        }
+        issues = _check_description_lists_enum_values("tool", schema)
+        assert len(issues) == 2
