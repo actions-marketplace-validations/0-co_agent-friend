@@ -121,6 +121,7 @@ from agent_friend.validate import (
     _check_name_ends_with_underscore,
     _check_param_name_has_space,
     _check_schema_type_not_object,
+    _check_description_has_trailing_colon,
 )
 
 
@@ -11830,3 +11831,53 @@ class TestSchemaTypeNotObject:
     def test_empty_schema_passes(self):
         issue = _check_schema_type_not_object("tool", {})
         assert issue is None
+
+
+# ---------------------------------------------------------------------------
+# Check 129: description_has_trailing_colon
+# ---------------------------------------------------------------------------
+
+class TestDescriptionHasTrailingColon:
+    def _run(self, tool_desc=None, param_desc=None):
+        obj = {}
+        if tool_desc is not None:
+            obj["description"] = tool_desc
+        schema = {}
+        if param_desc is not None:
+            schema["properties"] = {"mode": {"type": "string", "description": param_desc}}
+        return _check_description_has_trailing_colon("tool", obj, schema, "mcp")
+
+    def test_tool_desc_trailing_colon_fires(self):
+        issues = self._run(tool_desc="Supported formats:")
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_trailing_colon"
+        assert issues[0].severity == "warn"
+
+    def test_tool_desc_trailing_colon_with_spaces_fires(self):
+        issues = self._run(tool_desc="Available options:   ")
+        assert len(issues) == 1
+
+    def test_param_desc_trailing_colon_fires(self):
+        issues = self._run(param_desc="One of the following values:")
+        assert len(issues) == 1
+        assert "mode" in issues[0].message
+
+    def test_both_trailing_colon_fires_twice(self):
+        issues = self._run(tool_desc="Pick one:", param_desc="Options:")
+        assert len(issues) == 2
+
+    def test_no_colon_passes(self):
+        issues = self._run(tool_desc="Get a resource by ID.")
+        assert issues == []
+
+    def test_colon_in_middle_passes(self):
+        issues = self._run(tool_desc="Format: json or csv.")
+        assert issues == []
+
+    def test_empty_desc_passes(self):
+        issues = self._run(tool_desc="")
+        assert issues == []
+
+    def test_no_desc_passes(self):
+        issues = self._run()
+        assert issues == []

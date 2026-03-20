@@ -2478,6 +2478,70 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 129: description_has_trailing_colon
+# ---------------------------------------------------------------------------
+
+
+def _check_description_has_trailing_colon(
+    tool_name: str,
+    obj: Dict[str, Any],
+    schema: Dict[str, Any],
+    fmt: str,
+) -> List[Issue]:
+    """Check 129: description_has_trailing_colon — a tool or parameter
+    description ends with a colon (``:``) character.
+
+    A trailing colon usually means a list or code block was supposed to follow
+    but got cut off.  Descriptions should be complete sentences::
+
+        # bad — truncated, list didn't make it into the description
+        {"description": "Supported formats:"}
+        {"description": "Available options:"}
+
+        # good — complete sentence
+        {"description": "Supported formats: json, csv, or xml."}
+        {"description": "One of: json, csv, xml."}
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    tool_desc = _get_tool_description(obj, fmt)
+    if isinstance(tool_desc, str) and tool_desc.rstrip().endswith(":"):
+        issues.append(
+            Issue(
+                tool=tool_name,
+                severity="warn",
+                check="description_has_trailing_colon",
+                message=(
+                    "tool '{name}' description ends with ':' — the "
+                    "description appears truncated; complete the sentence or "
+                    "inline the list."
+                ).format(name=tool_name),
+            )
+        )
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        for param, pschema in props.items():
+            if not isinstance(pschema, dict):
+                continue
+            desc = pschema.get("description", "")
+            if isinstance(desc, str) and desc.rstrip().endswith(":"):
+                issues.append(
+                    Issue(
+                        tool=tool_name,
+                        severity="warn",
+                        check="description_has_trailing_colon",
+                        message=(
+                            "tool '{name}' param '{param}' description ends "
+                            "with ':' — the description appears truncated; "
+                            "complete the sentence or inline the list."
+                        ).format(name=tool_name, param=param),
+                    )
+                )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 128: schema_type_not_object
 # ---------------------------------------------------------------------------
 
@@ -7815,6 +7879,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
         issue = _check_schema_type_not_object(name, schema)
         if issue is not None:
             issues.append(issue)
+
+        # Check 129: description_has_trailing_colon
+        issues.extend(_check_description_has_trailing_colon(name, raw_obj, schema, fmt))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
