@@ -74,6 +74,7 @@ from agent_friend.validate import (
     _check_description_has_example,
     _check_description_lists_enum_values,
     _check_param_description_says_ignored,
+    _check_enum_boolean_string,
 )
 
 
@@ -9444,4 +9445,71 @@ class TestParamDescriptionSaysIgnored:
 
     def test_empty_schema_passes(self):
         issues = _check_param_description_says_ignored("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for Check 82: enum_boolean_string
+# ---------------------------------------------------------------------------
+
+
+class TestEnumBooleanString:
+    """Tests for Check 82: enum_boolean_string."""
+
+    def _schema(self, param, enum_vals, typ="string"):
+        return {
+            "type": "object",
+            "properties": {
+                param: {"type": typ, "enum": enum_vals, "description": f"The {param} flag."},
+            },
+        }
+
+    def test_true_false_fires(self):
+        issues = _check_enum_boolean_string("tool", self._schema("active", ["true", "false"]))
+        assert len(issues) == 1
+        assert issues[0].check == "enum_boolean_string"
+        assert issues[0].severity == "warn"
+
+    def test_yes_no_fires(self):
+        issues = _check_enum_boolean_string("tool", self._schema("enabled", ["yes", "no"]))
+        assert len(issues) == 1
+
+    def test_on_off_fires(self):
+        issues = _check_enum_boolean_string("tool", self._schema("switch", ["on", "off"]))
+        assert len(issues) == 1
+
+    def test_enabled_disabled_fires(self):
+        issues = _check_enum_boolean_string("tool", self._schema("status", ["enabled", "disabled"]))
+        assert len(issues) == 1
+
+    def test_mixed_case_fires(self):
+        issues = _check_enum_boolean_string("tool", self._schema("flag", ["True", "False"]))
+        assert len(issues) == 1
+
+    def test_real_enum_passes(self):
+        issues = _check_enum_boolean_string("tool", self._schema("order", ["asc", "desc"]))
+        assert issues == []
+
+    def test_non_string_type_passes(self):
+        """Boolean type with enum is fine — already correct."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "active": {"type": "boolean", "enum": [True, False]},
+            },
+        }
+        issues = _check_enum_boolean_string("tool", schema)
+        assert issues == []
+
+    def test_three_value_enum_passes(self):
+        """Three-value enum is not a boolean pair."""
+        issues = _check_enum_boolean_string("tool", self._schema("state", ["on", "off", "auto"]))
+        assert issues == []
+
+    def test_no_properties_passes(self):
+        issues = _check_enum_boolean_string("tool", {"type": "object"})
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_enum_boolean_string("tool", {})
         assert issues == []

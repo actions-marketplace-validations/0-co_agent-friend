@@ -2610,6 +2610,71 @@ def _check_param_description_says_ignored(
 
 
 # ---------------------------------------------------------------------------
+# Check 82: enum_boolean_string
+# ---------------------------------------------------------------------------
+
+_BOOL_STRING_SETS = (
+    frozenset({"true", "false"}),
+    frozenset({"yes", "no"}),
+    frozenset({"on", "off"}),
+    frozenset({"1", "0"}),
+    frozenset({"enabled", "disabled"}),
+)
+
+
+def _check_enum_boolean_string(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 82: enum_boolean_string — a string parameter's enum contains
+    only boolean-like values (``true``/``false``, ``yes``/``no``,
+    ``on``/``off``, ``1``/``0``, ``enabled``/``disabled``).
+
+    These parameters should use ``type: boolean`` instead::
+
+        # bad — boolean disguised as string enum
+        {"type": "string", "enum": ["true", "false"]}
+        {"type": "string", "enum": ["yes", "no"]}
+
+        # good — use the actual boolean type
+        {"type": "boolean"}
+
+    Using string booleans forces consumers to handle both boolean and string
+    representations, increases parsing complexity, and wastes tokens.
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        if param_schema.get("type") != "string":
+            continue
+        enum_vals = param_schema.get("enum")
+        if not isinstance(enum_vals, list) or len(enum_vals) != 2:
+            continue
+        # Normalize to lowercase strings
+        lower_set = frozenset(
+            str(v).lower() for v in enum_vals if isinstance(v, (str, int, bool))
+        )
+        if any(lower_set == bool_set for bool_set in _BOOL_STRING_SETS):
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="enum_boolean_string",
+                message=(
+                    "param '{param}' uses enum {vals} as a string type; "
+                    "use 'type: boolean' instead."
+                ).format(param=param_name, vals=sorted(enum_vals)),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -5162,6 +5227,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 81: param_description_says_ignored
         issues.extend(_check_param_description_says_ignored(name, schema))
+
+        # Check 82: enum_boolean_string
+        issues.extend(_check_enum_boolean_string(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.
