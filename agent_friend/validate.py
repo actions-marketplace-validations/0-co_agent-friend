@@ -2920,6 +2920,65 @@ def _check_param_name_single_char(
 
 
 # ---------------------------------------------------------------------------
+# Check 87: allof_single_schema
+# ---------------------------------------------------------------------------
+
+
+def _check_allof_single_schema(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 87: allof_single_schema — a parameter or inputSchema uses
+    ``allOf``, ``oneOf``, or ``anyOf`` with exactly one element.
+
+    A combiner keyword with a single schema is a no-op and should be
+    simplified::
+
+        # bad — allOf with one element adds no meaning, wastes tokens
+        {"allOf": [{"type": "string", "minLength": 1}]}
+
+        # good — just use the schema directly
+        {"type": "string", "minLength": 1}
+
+    Common source: code generators that wrap every schema in ``allOf`` or
+    ``oneOf`` for extensibility.
+
+    This check fires on the inputSchema and each parameter that uses a
+    single-element combiner.
+
+    Severity: ``warn``.
+    """
+    issues = []
+
+    def _check_schema_node(name: str, node: Dict[str, Any], is_param: bool = False) -> None:
+        for combiner in ("allOf", "oneOf", "anyOf"):
+            val = node.get(combiner)
+            if isinstance(val, list) and len(val) == 1:
+                label = "param '{}'".format(name) if is_param else "inputSchema"
+                issues.append(Issue(
+                    tool=tool_name,
+                    severity="warn",
+                    check="allof_single_schema",
+                    message=(
+                        "{label} uses {combiner} with a single schema; "
+                        "use the schema directly instead."
+                    ).format(label=label, combiner=combiner),
+                ))
+
+    # Check inputSchema itself (top level)
+    _check_schema_node(tool_name, schema, is_param=False)
+
+    # Check each parameter
+    properties = schema.get("properties", {})
+    if isinstance(properties, dict):
+        for param_name, param_schema in properties.items():
+            if isinstance(param_schema, dict):
+                _check_schema_node(param_name, param_schema, is_param=True)
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -5487,6 +5546,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 86: param_name_single_char
         issues.extend(_check_param_name_single_char(name, schema))
+
+        # Check 87: allof_single_schema
+        issues.extend(_check_allof_single_schema(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.

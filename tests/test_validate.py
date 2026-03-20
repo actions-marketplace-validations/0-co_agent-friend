@@ -79,6 +79,7 @@ from agent_friend.validate import (
     _check_schema_has_x_field,
     _check_default_violates_minimum,
     _check_param_name_single_char,
+    _check_allof_single_schema,
 )
 
 
@@ -9794,4 +9795,76 @@ class TestParamNameSingleChar:
 
     def test_empty_schema_passes(self):
         issues = _check_param_name_single_char("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for Check 87: allof_single_schema
+# ---------------------------------------------------------------------------
+
+
+class TestAllofSingleSchema:
+    """Tests for Check 87: allof_single_schema."""
+
+    def test_allof_single_in_schema_fires(self):
+        schema = {
+            "allOf": [{"type": "object", "properties": {"name": {"type": "string"}}}],
+        }
+        issues = _check_allof_single_schema("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "allof_single_schema"
+        assert issues[0].severity == "warn"
+
+    def test_oneof_single_fires(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "status": {"oneOf": [{"type": "string", "enum": ["active", "inactive"]}]},
+            },
+        }
+        issues = _check_allof_single_schema("tool", schema)
+        assert len(issues) == 1
+        assert "status" in issues[0].message
+
+    def test_anyof_single_fires(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "value": {"anyOf": [{"type": "number"}]},
+            },
+        }
+        issues = _check_allof_single_schema("tool", schema)
+        assert len(issues) == 1
+
+    def test_allof_multiple_passes(self):
+        """allOf with multiple schemas is valid and useful."""
+        schema = {
+            "allOf": [
+                {"type": "object"},
+                {"properties": {"name": {"type": "string"}}},
+            ]
+        }
+        issues = _check_allof_single_schema("tool", schema)
+        assert issues == []
+
+    def test_anyof_two_schemas_passes(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "val": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            },
+        }
+        issues = _check_allof_single_schema("tool", schema)
+        assert issues == []
+
+    def test_no_combiner_passes(self):
+        schema = {
+            "type": "object",
+            "properties": {"name": {"type": "string", "description": "Name."}},
+        }
+        issues = _check_allof_single_schema("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_allof_single_schema("tool", {})
         assert issues == []
