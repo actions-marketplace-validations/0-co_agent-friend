@@ -2478,6 +2478,74 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 144: description_has_email
+# ---------------------------------------------------------------------------
+
+_EMAIL_IN_TEXT_RE = re.compile(
+    r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b",
+)
+
+
+def _check_description_has_email(
+    tool_name: str,
+    obj: Dict[str, Any],
+    schema: Dict[str, Any],
+    fmt: str,
+) -> List[Issue]:
+    """Check 144: description_has_email — a tool or parameter description
+    contains an email address.
+
+    Email addresses in tool descriptions are usually support contacts,
+    author attribution, or example values embedded in prose.  Contact
+    information belongs in project documentation, not in schema descriptions
+    that are included in every LLM context window::
+
+        # bad — email address wastes tokens in every context
+        {"description": "Fetch user data. Contact admin@example.com for access."}
+
+        # good — plain description, no contact info
+        {"description": "Fetch user data by ID."}
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    tool_desc = _get_tool_description(obj, fmt)
+    if isinstance(tool_desc, str) and _EMAIL_IN_TEXT_RE.search(tool_desc):
+        issues.append(
+            Issue(
+                tool=tool_name,
+                severity="warn",
+                check="description_has_email",
+                message=(
+                    "tool '{name}' description contains an email address — "
+                    "contact info belongs in documentation, not in schema "
+                    "descriptions."
+                ).format(name=tool_name),
+            )
+        )
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        for param, pschema in props.items():
+            if not isinstance(pschema, dict):
+                continue
+            desc = pschema.get("description", "")
+            if isinstance(desc, str) and _EMAIL_IN_TEXT_RE.search(desc):
+                issues.append(
+                    Issue(
+                        tool=tool_name,
+                        severity="warn",
+                        check="description_has_email",
+                        message=(
+                            "tool '{name}' param '{param}' description "
+                            "contains an email address — contact info "
+                            "belongs in documentation."
+                        ).format(name=tool_name, param=param),
+                    )
+                )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 143: param_name_has_period
 # ---------------------------------------------------------------------------
 
@@ -8763,6 +8831,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 143: param_name_has_period
         issues.extend(_check_param_name_has_period(name, schema))
+
+        # Check 144: description_has_email
+        issues.extend(_check_description_has_email(name, raw_obj, schema, fmt))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

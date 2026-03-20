@@ -136,6 +136,7 @@ from agent_friend.validate import (
     _check_description_has_numbered_list,
     _check_description_has_bullet_list,
     _check_param_name_has_period,
+    _check_description_has_email,
 )
 
 
@@ -12485,4 +12486,46 @@ class TestParamNameHasPeriod:
 
     def test_empty_schema_passes(self):
         issues = _check_param_name_has_period("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 144: description_has_email
+# ---------------------------------------------------------------------------
+
+class TestDescriptionHasEmail:
+    def _run(self, tool_desc=None, param_desc=None):
+        obj = {}
+        if tool_desc is not None:
+            obj["description"] = tool_desc
+        schema = {}
+        if param_desc is not None:
+            schema["properties"] = {"x": {"type": "string", "description": param_desc}}
+        return _check_description_has_email("tool", obj, schema, "mcp")
+
+    def test_email_in_tool_desc_fires(self):
+        issues = self._run(tool_desc="Fetch data. Contact admin@example.com for access.")
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_email"
+        assert issues[0].severity == "warn"
+
+    def test_email_in_param_desc_fires(self):
+        issues = self._run(param_desc="Email address like user@domain.org.")
+        assert len(issues) == 1
+        assert "x" in issues[0].message
+
+    def test_subdomain_email_fires(self):
+        issues = self._run(tool_desc="Contact support@help.company.co.uk")
+        assert len(issues) == 1
+
+    def test_plain_text_passes(self):
+        issues = self._run(tool_desc="Fetch data by ID.")
+        assert issues == []
+
+    def test_at_symbol_without_domain_passes(self):
+        issues = self._run(tool_desc="Tag @username for notifications.")
+        assert issues == []
+
+    def test_empty_passes(self):
+        issues = self._run(tool_desc="")
         assert issues == []
