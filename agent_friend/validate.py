@@ -2478,6 +2478,61 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 111: param_name_ends_with_type
+# ---------------------------------------------------------------------------
+
+_TYPE_SUFFIX_RE = re.compile(
+    r"_(?:string|integer|boolean|number|float|array|object|dict|list)$",
+    re.IGNORECASE,
+)
+
+
+def _check_param_name_ends_with_type(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 111: param_name_ends_with_type — a parameter name ends with a
+    type suffix such as ``_string``, ``_integer``, ``_boolean``, ``_array``,
+    ``_object``, etc.
+
+    Like Hungarian notation prefixes, type suffixes redundantly encode the
+    type in the parameter name.  The type is already declared in the
+    schema's ``type`` field::
+
+        # bad — type redundantly encoded in the suffix
+        {"query_string": {"type": "string", ...}}
+        {"active_boolean": {"type": "boolean", ...}}
+        {"limit_integer": {"type": "integer", ...}}
+        {"tags_array": {"type": "array", ...}}
+
+        # good — descriptive names; type is in the schema
+        {"query": {"type": "string", ...}}
+        {"active": {"type": "boolean", ...}}
+        {"limit": {"type": "integer", ...}}
+        {"tags": {"type": "array", ...}}
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name in properties:
+        if _TYPE_SUFFIX_RE.search(param_name):
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="param_name_ends_with_type",
+                message=(
+                    "param '{param}' name ends with a type suffix — the "
+                    "type is already in the schema; use a descriptive name "
+                    "without the type suffix."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
 # Check 110: param_name_starts_with_type
 # ---------------------------------------------------------------------------
 
@@ -6786,6 +6841,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 110: param_name_starts_with_type
         issues.extend(_check_param_name_starts_with_type(name, schema))
+
+        # Check 111: param_name_ends_with_type
+        issues.extend(_check_param_name_ends_with_type(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
