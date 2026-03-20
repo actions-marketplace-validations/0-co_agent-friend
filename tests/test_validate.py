@@ -82,6 +82,7 @@ from agent_friend.validate import (
     _check_allof_single_schema,
     _check_enum_has_duplicates,
     _check_description_has_html,
+    _check_description_starts_with_param_name,
 )
 
 
@@ -9971,3 +9972,49 @@ class TestDescriptionHasHtml:
         # The regex requires at least a word char after <
         issues = _check_description_has_html("tool", raw_obj, schema)
         assert issues == []  # <200ms doesn't match \w[\w.-]* pattern
+
+
+# ---------------------------------------------------------------------------
+# Tests for Check 90: description_starts_with_param_name
+# ---------------------------------------------------------------------------
+
+
+class TestDescriptionStartsWithParamName:
+    """Tests for Check 90: description_starts_with_param_name."""
+
+    def _schema(self, param, desc):
+        return {
+            "type": "object",
+            "properties": {param: {"type": "string", "description": desc}},
+        }
+
+    def test_colon_separator_fires(self):
+        issues = _check_description_starts_with_param_name("tool", self._schema("limit", "limit: Maximum number of results."))
+        assert len(issues) == 1
+        assert issues[0].check == "description_starts_with_param_name"
+        assert issues[0].severity == "warn"
+
+    def test_dash_separator_fires(self):
+        issues = _check_description_starts_with_param_name("tool", self._schema("query", "query - The search string."))
+        assert len(issues) == 1
+
+    def test_em_dash_separator_fires(self):
+        issues = _check_description_starts_with_param_name("tool", self._schema("status", "status — Current status value."))
+        assert len(issues) == 1
+
+    def test_clean_description_passes(self):
+        issues = _check_description_starts_with_param_name("tool", self._schema("limit", "Maximum number of results to return."))
+        assert issues == []
+
+    def test_name_in_middle_passes(self):
+        """Name in middle of description doesn't fire."""
+        issues = _check_description_starts_with_param_name("tool", self._schema("query", "Full text search using query syntax."))
+        assert issues == []
+
+    def test_no_properties_passes(self):
+        issues = _check_description_starts_with_param_name("tool", {"type": "object"})
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_description_starts_with_param_name("tool", {})
+        assert issues == []

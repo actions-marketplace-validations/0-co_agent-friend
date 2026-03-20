@@ -3093,6 +3093,70 @@ def _check_description_has_html(
 
 
 # ---------------------------------------------------------------------------
+# Check 90: description_starts_with_param_name
+# ---------------------------------------------------------------------------
+
+
+def _check_description_starts_with_param_name(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 90: description_starts_with_param_name — a parameter description
+    begins with the parameter name (e.g., ``"limit: Max results"`` for param
+    ``limit``).
+
+    When a description starts with the parameter name followed by a colon,
+    dash, or similar separator, the name is being repeated.  The model
+    already sees the parameter name separately — duplicating it in the
+    description wastes tokens and adds no information::
+
+        # bad — "limit" is already the param name
+        {"limit": {"description": "limit: Maximum number of results."}}
+        {"query": {"description": "query - The search string."}}
+
+        # good — description adds meaning without restating the name
+        {"limit": {"description": "Maximum number of results to return."}}
+        {"query": {"description": "Full-text search query."}}
+
+    Fires when the description starts with the param name (case-insensitive)
+    followed by a colon, dash, em-dash, or space+colon.
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        desc = param_schema.get("description", "")
+        if not isinstance(desc, str) or not desc:
+            continue
+        # Check if description starts with param_name followed by separator
+        lower_name = param_name.lower().replace("_", "").replace("-", "")
+        lower_desc = desc.lower().lstrip()
+        # Strip underscores/hyphens from description start too
+        desc_start = _re.sub(r"[\s_-]", "", lower_desc[:len(param_name) + 5])
+        if desc_start.startswith(lower_name):
+            # Check what follows the name in the original description
+            rest = desc.lstrip()[len(param_name):].lstrip()
+            if rest and rest[0] in (":", "-", "–", "—", "="):
+                issues.append(Issue(
+                    tool=tool_name,
+                    severity="warn",
+                    check="description_starts_with_param_name",
+                    message=(
+                        "param '{param}' description starts with the param "
+                        "name ('{name}: ...')  — the name is already shown "
+                        "separately; start with what the value represents."
+                    ).format(param=param_name, name=param_name),
+                ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -5669,6 +5733,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 89: description_has_html
         issues.extend(_check_description_has_html(name, raw_obj, schema, fmt))
+
+        # Check 90: description_starts_with_param_name
+        issues.extend(_check_description_starts_with_param_name(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.
