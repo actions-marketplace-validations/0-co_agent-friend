@@ -147,6 +147,7 @@ from agent_friend.validate import (
     _check_description_starts_with_tool_name,
     _check_schema_has_comment_field,
     _check_description_has_windows_path,
+    _check_enum_string_has_whitespace,
 )
 
 
@@ -12984,4 +12985,48 @@ class TestDescriptionHasWindowsPath:
     def test_empty_schema_passes(self):
         obj = {"name": "tool", "description": "Simple tool"}
         issues = _check_description_has_windows_path("tool", obj, {}, "mcp")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 155: enum_string_has_whitespace
+# ---------------------------------------------------------------------------
+
+class TestEnumStringHasWhitespace:
+    def test_leading_space_fires(self):
+        schema = {"properties": {"status": {"enum": [" active", "inactive"]}}}
+        issues = _check_enum_string_has_whitespace("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "enum_string_has_whitespace"
+        assert issues[0].severity == "error"
+
+    def test_trailing_space_fires(self):
+        schema = {"properties": {"status": {"enum": ["active ", "inactive"]}}}
+        issues = _check_enum_string_has_whitespace("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "enum_string_has_whitespace"
+
+    def test_both_spaces_fires(self):
+        schema = {"properties": {"mode": {"enum": [" fast ", " slow "]}}}
+        issues = _check_enum_string_has_whitespace("tool", schema)
+        assert len(issues) == 2
+
+    def test_clean_enum_passes(self):
+        schema = {"properties": {"status": {"enum": ["active", "inactive", "pending"]}}}
+        issues = _check_enum_string_has_whitespace("tool", schema)
+        assert issues == []
+
+    def test_non_string_enum_value_passes(self):
+        schema = {"properties": {"count": {"enum": [1, 2, 3]}}}
+        issues = _check_enum_string_has_whitespace("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_enum_string_has_whitespace("tool", {})
+        assert issues == []
+
+    def test_internal_space_passes(self):
+        # internal spaces are allowed (e.g. "in progress")
+        schema = {"properties": {"status": {"enum": ["in progress", "done"]}}}
+        issues = _check_enum_string_has_whitespace("tool", schema)
         assert issues == []

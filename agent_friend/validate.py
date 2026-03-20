@@ -2478,6 +2478,54 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 155: enum_string_has_whitespace
+# ---------------------------------------------------------------------------
+
+
+def _check_enum_string_has_whitespace(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 155: enum_string_has_whitespace — an enum value (string) has
+    leading or trailing whitespace.
+
+    A model will never produce ``" value"`` when the expected value is
+    ``"value"``.  Leading/trailing spaces in enum strings are almost certainly
+    copy-paste or serialization bugs.
+
+    Severity: ``error``.
+    """
+    issues: List[Issue] = []
+
+    def _scan(obj: Any, path: str) -> None:
+        if not isinstance(obj, dict):
+            return
+        enum = obj.get("enum")
+        if isinstance(enum, list):
+            for v in enum:
+                if isinstance(v, str) and v != v.strip():
+                    issues.append(Issue(
+                        tool=tool_name,
+                        severity="error",
+                        check="enum_string_has_whitespace",
+                        message=(
+                            "param '{path}' has an enum value with leading or "
+                            "trailing whitespace: {v!r}. This will never match "
+                            "model output — strip the whitespace.".format(
+                                path=path, v=v
+                            )
+                        ),
+                    ))
+        props = obj.get("properties")
+        if isinstance(props, dict):
+            for pname, pschema in props.items():
+                _scan(pschema, pname)
+
+    _scan(schema, "inputSchema")
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 154: description_has_windows_path
 # ---------------------------------------------------------------------------
 
@@ -9431,6 +9479,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 154: description_has_windows_path
         issues.extend(_check_description_has_windows_path(name, raw_obj, schema, fmt))
+
+        # Check 155: enum_string_has_whitespace
+        issues.extend(_check_enum_string_has_whitespace(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
