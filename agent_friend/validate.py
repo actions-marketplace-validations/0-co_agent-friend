@@ -2478,6 +2478,55 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 143: param_name_has_period
+# ---------------------------------------------------------------------------
+
+
+def _check_param_name_has_period(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 143: param_name_has_period — a parameter name contains a period
+    (```.```).
+
+    Period-separated paths like ``user.id`` or ``config.timeout`` suggest
+    dot-notation for nested access, but JSON Schema uses nested ``properties``
+    objects for that purpose.  Periods in param names create ambiguity about
+    whether the caller should pass a literal key with a dot or a nested
+    object::
+
+        # bad — dot notation is not JSON Schema
+        {"user.id": {"type": "string"}}
+        {"config.timeout": {"type": "integer"}}
+
+        # good — use nested properties or snake_case
+        {"user_id": {"type": "string"}}
+        {"config": {"type": "object", "properties": {"timeout": {"type": "integer"}}}}
+
+    Severity: ``error``.
+    """
+    issues: List[Issue] = []
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return issues
+    for param in props:
+        if "." in param:
+            issues.append(
+                Issue(
+                    tool=tool_name,
+                    severity="error",
+                    check="param_name_has_period",
+                    message=(
+                        "tool '{name}' param '{param}' contains a period — "
+                        "use snake_case or nested properties instead of "
+                        "dot-notation."
+                    ).format(name=tool_name, param=param),
+                )
+            )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 142: description_has_bullet_list
 # ---------------------------------------------------------------------------
 
@@ -8711,6 +8760,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 142: description_has_bullet_list
         issues.extend(_check_description_has_bullet_list(name, raw_obj, schema, fmt))
+
+        # Check 143: param_name_has_period
+        issues.extend(_check_param_name_has_period(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

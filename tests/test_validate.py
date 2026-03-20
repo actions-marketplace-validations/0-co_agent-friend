@@ -135,6 +135,7 @@ from agent_friend.validate import (
     _check_tool_count_exceeds_limit,
     _check_description_has_numbered_list,
     _check_description_has_bullet_list,
+    _check_param_name_has_period,
 )
 
 
@@ -12451,4 +12452,37 @@ class TestDescriptionHasBulletList:
 
     def test_empty_passes(self):
         issues = self._run(tool_desc="")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 143: param_name_has_period
+# ---------------------------------------------------------------------------
+
+class TestParamNameHasPeriod:
+    def test_dot_notation_fires(self):
+        schema = {"properties": {"user.id": {"type": "string"}}}
+        issues = _check_param_name_has_period("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_has_period"
+        assert issues[0].severity == "error"
+        assert "user.id" in issues[0].message
+
+    def test_nested_path_fires(self):
+        schema = {"properties": {"config.timeout": {"type": "integer"}}}
+        issues = _check_param_name_has_period("tool", schema)
+        assert len(issues) == 1
+
+    def test_multiple_periods_fires(self):
+        schema = {"properties": {"a.b.c": {"type": "string"}}}
+        issues = _check_param_name_has_period("tool", schema)
+        assert len(issues) == 1
+
+    def test_normal_name_passes(self):
+        schema = {"properties": {"user_id": {"type": "string"}}}
+        issues = _check_param_name_has_period("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_has_period("tool", {})
         assert issues == []
