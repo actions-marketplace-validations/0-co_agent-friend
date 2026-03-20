@@ -2027,6 +2027,107 @@ def _check_description_word_repetition(name: str, obj: Dict[str, Any], fmt: str)
 
 
 # ---------------------------------------------------------------------------
+# Check 75: default_type_mismatch
+# ---------------------------------------------------------------------------
+
+# Maps JSON Schema type names to the Python types that are valid for that type.
+# "null" default is always allowed (means "not set") so it's excluded from checks.
+_JS_TYPE_TO_PYTHON: Dict[str, tuple] = {
+    "string":  (str,),
+    "boolean": (bool,),
+    "array":   (list,),
+    "object":  (dict,),
+    # integer and number: both int and float are fine for "number"; only int for "integer"
+    # We handle these separately because bool is a subclass of int in Python.
+    "integer": (int,),
+    "number":  (int, float),
+}
+
+
+def _default_type_mismatch(declared_type: str, default_value: Any) -> bool:
+    """Return True if default_value's Python type is incompatible with declared_type."""
+    if default_value is None:
+        return False  # null default is always acceptable
+    allowed = _JS_TYPE_TO_PYTHON.get(declared_type)
+    if allowed is None:
+        return False  # unknown type, skip
+    # bool is a subclass of int — treat it as boolean, not integer/number
+    if isinstance(default_value, bool):
+        return declared_type not in ("boolean",)
+    return not isinstance(default_value, allowed)
+
+
+def _check_default_type_mismatch(tool_name: str, schema: Dict[str, Any]) -> List[Issue]:
+    """Check 75: default_type_mismatch — a parameter's ``default`` value has a
+    different JSON type than the parameter's declared ``type``.
+
+    This is a schema correctness bug.  Examples:
+
+    * ``{"type": "integer", "default": "5"}``   — string default for integer
+    * ``{"type": "boolean", "default": "false"}`` — string default for boolean
+    * ``{"type": "array",   "default": {}}``    — object default for array
+    * ``{"type": "object",  "default": []}``    — array default for object
+    * ``{"type": "string",  "default": 0}``     — number default for string
+
+    A ``null`` default is always acceptable (means "use no default if omitted").
+
+    Common cause: copy-paste from prose documentation, or auto-generated schemas
+    that serialise defaults as strings regardless of the declared type.
+
+    Severity: error — the schema is incorrect; the model may pass wrong-typed
+    values or ignore the default entirely.
+    """
+    if schema is None:
+        return []
+
+    issues: List[Issue] = []
+    properties = schema.get("properties") or {}
+
+    def _check_props(props: Any, path: str) -> None:
+        if not isinstance(props, dict):
+            return
+        for param_name, param_schema in props.items():
+            if not isinstance(param_schema, dict):
+                continue
+            declared_type = param_schema.get("type")
+            if not isinstance(declared_type, str):
+                continue  # array type or no type — skip
+            if "default" not in param_schema:
+                continue
+            default_val = param_schema["default"]
+            if _default_type_mismatch(declared_type, default_val):
+                param_path = f"{path}.{param_name}" if path else param_name
+                issues.append(Issue(
+                    tool=tool_name,
+                    severity="error",
+                    check="default_type_mismatch",
+                    message=(
+                        "param '{param}' declares type '{type}' but default value "
+                        "{default!r} is {actual_type} — default must match declared type."
+                    ).format(
+                        param=param_path,
+                        type=declared_type,
+                        default=default_val,
+                        actual_type=type(default_val).__name__,
+                    ),
+                ))
+            # Recurse into nested objects
+            nested_props = param_schema.get("properties") or {}
+            if nested_props:
+                _check_props(nested_props, f"{path}.{param_name}" if path else param_name)
+            # Recurse into array items
+            items = param_schema.get("items") or {}
+            if isinstance(items, dict):
+                nested_item_props = items.get("properties") or {}
+                if nested_item_props:
+                    item_path = f"{path}.{param_name}[]" if path else f"{param_name}[]"
+                    _check_props(nested_item_props, item_path)
+
+    _check_props(properties, "")
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -4553,6 +4654,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
         issue = _check_description_word_repetition(name, raw_obj, fmt)
         if issue is not None:
             issues.append(issue)
+
+        # Check 75: default_type_mismatch
+        issues.extend(_check_default_type_mismatch(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.
