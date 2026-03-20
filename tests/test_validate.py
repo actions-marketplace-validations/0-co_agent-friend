@@ -139,6 +139,7 @@ from agent_friend.validate import (
     _check_description_has_email,
     _check_description_has_command_example,
     _check_description_uses_future_tense,
+    _check_description_has_markdown_link,
 )
 
 
@@ -12621,6 +12622,49 @@ class TestDescriptionUsesFutureTense:
 
     def test_will_without_verb_passes(self):
         issues = self._run(tool_desc="This fulfills the user's will.")
+        assert issues == []
+
+    def test_empty_passes(self):
+        issues = self._run(tool_desc="")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 147: description_has_markdown_link
+# ---------------------------------------------------------------------------
+
+class TestDescriptionHasMarkdownLink:
+    def _run(self, tool_desc=None, param_desc=None):
+        obj = {}
+        if tool_desc is not None:
+            obj["description"] = tool_desc
+        schema = {}
+        if param_desc is not None:
+            schema["properties"] = {"x": {"type": "string", "description": param_desc}}
+        return _check_description_has_markdown_link("tool", obj, schema, "mcp")
+
+    def test_markdown_link_fires(self):
+        issues = self._run(tool_desc="Fetch data. See [API docs](https://example.com).")
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_markdown_link"
+        assert issues[0].severity == "warn"
+
+    def test_param_markdown_link_fires(self):
+        issues = self._run(param_desc="See [docs](https://example.com/api) for details.")
+        assert len(issues) == 1
+        assert "x" in issues[0].message
+
+    def test_plain_url_passes(self):
+        # Note: plain URLs are caught by description_contains_url (Check 64)
+        issues = self._run(tool_desc="Fetch data. See https://example.com for details.")
+        assert issues == []
+
+    def test_plain_text_passes(self):
+        issues = self._run(tool_desc="Fetch user data by ID.")
+        assert issues == []
+
+    def test_bracket_without_paren_passes(self):
+        issues = self._run(tool_desc="The [optional] field.")
         assert issues == []
 
     def test_empty_passes(self):

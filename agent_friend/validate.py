@@ -2478,6 +2478,73 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 147: description_has_markdown_link
+# ---------------------------------------------------------------------------
+
+_MARKDOWN_LINK_RE = re.compile(
+    r"\[[^\]]{1,100}\]\([^)]{1,300}\)",
+)
+
+
+def _check_description_has_markdown_link(
+    tool_name: str,
+    obj: Dict[str, Any],
+    schema: Dict[str, Any],
+    fmt: str,
+) -> List[Issue]:
+    """Check 147: description_has_markdown_link — a tool or parameter
+    description contains a Markdown hyperlink (``[text](url)``).
+
+    Markdown links render as literal ``[text](url)`` text in LLM contexts —
+    they waste tokens and confuse the model.  Documentation links belong in
+    README files, not in tool or parameter descriptions::
+
+        # bad — markdown link renders as literal text in LLM context
+        {"description": "Fetch user data. See [API docs](https://example.com/docs)."}
+
+        # good — plain description, no links
+        {"description": "Fetch user data by ID."}
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    tool_desc = _get_tool_description(obj, fmt)
+    if isinstance(tool_desc, str) and _MARKDOWN_LINK_RE.search(tool_desc):
+        issues.append(
+            Issue(
+                tool=tool_name,
+                severity="warn",
+                check="description_has_markdown_link",
+                message=(
+                    "tool '{name}' description contains a Markdown link "
+                    "[text](url) — links render as literal text in LLM "
+                    "contexts; remove or inline the URL as plain text."
+                ).format(name=tool_name),
+            )
+        )
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        for param, pschema in props.items():
+            if not isinstance(pschema, dict):
+                continue
+            desc = pschema.get("description", "")
+            if isinstance(desc, str) and _MARKDOWN_LINK_RE.search(desc):
+                issues.append(
+                    Issue(
+                        tool=tool_name,
+                        severity="warn",
+                        check="description_has_markdown_link",
+                        message=(
+                            "tool '{name}' param '{param}' description "
+                            "contains a Markdown link [text](url) — "
+                            "remove or inline as plain text."
+                        ).format(name=tool_name, param=param),
+                    )
+                )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 146: description_uses_future_tense
 # ---------------------------------------------------------------------------
 
@@ -8986,6 +9053,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 146: description_uses_future_tense
         issues.extend(_check_description_uses_future_tense(name, raw_obj, schema, fmt))
+
+        # Check 147: description_has_markdown_link
+        issues.extend(_check_description_has_markdown_link(name, raw_obj, schema, fmt))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
