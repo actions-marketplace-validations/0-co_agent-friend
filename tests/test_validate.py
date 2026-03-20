@@ -85,6 +85,7 @@ from agent_friend.validate import (
     _check_description_starts_with_param_name,
     _check_string_type_describes_json,
     _check_object_param_no_properties,
+    _check_tool_name_contains_version,
 )
 
 
@@ -10138,3 +10139,41 @@ class TestObjectParamNoProperties:
     def test_empty_schema_passes(self):
         issues = _check_object_param_no_properties("tool", {})
         assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 93: tool_name_contains_version
+# ---------------------------------------------------------------------------
+
+
+class TestToolNameContainsVersion:
+    """Tests for _check_tool_name_contains_version (Check 93)."""
+
+    def test_v2_suffix_fires(self):
+        issue = _check_tool_name_contains_version("get_user_v2")
+        assert issue is not None
+        assert issue.check == "tool_name_contains_version"
+        assert issue.severity == "warn"
+
+    def test_v1_prefix_fires(self):
+        issue = _check_tool_name_contains_version("v1_list_items")
+        assert issue is not None
+
+    def test_year_suffix_fires(self):
+        issue = _check_tool_name_contains_version("create_record_2024")
+        assert issue is not None
+
+    def test_version_word_fires(self):
+        issue = _check_tool_name_contains_version("list_users_version2")
+        assert issue is not None
+
+    def test_plain_name_passes(self):
+        assert _check_tool_name_contains_version("get_user") is None
+
+    def test_name_with_digit_in_word_passes(self):
+        # "s3_upload" has a digit but not a standalone version segment
+        assert _check_tool_name_contains_version("s3_upload") is None
+
+    def test_oauth2_passes(self):
+        # "oauth2_token" — 2 is part of word, not a standalone v2 segment
+        assert _check_tool_name_contains_version("oauth2_token") is None

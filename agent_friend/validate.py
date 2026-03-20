@@ -2370,6 +2370,43 @@ def _check_tool_name_uses_hyphen(tool_name: str) -> Optional[Issue]:
     )
 
 
+# ---------------------------------------------------------------------------
+# Check 93: tool_name_contains_version
+# ---------------------------------------------------------------------------
+
+_VERSION_IN_NAME_RE = re.compile(
+    r"(?:^|_)v\d+(?:_|$)"          # _v1_, _v2, v1_, etc.
+    r"|(?:^|_)\d{4}(?:_|$)"        # _2024_, _2023 etc.
+    r"|_v\d+\.\d+"                  # _v1.2
+    r"|_version_?\d+",              # _version1, _version_2
+    re.IGNORECASE,
+)
+
+
+def _check_tool_name_contains_version(tool_name: str) -> Optional[Issue]:
+    """Check 93: tool_name_contains_version — tool name contains a version
+    number (e.g., ``get_user_v2``, ``list_items_v1``, ``create_record_2024``).
+
+    Version numbers in tool names leak implementation details into the
+    schema and break backwards compatibility for clients that hard-code
+    tool names.  Versioning belongs in the server metadata (manifest
+    version, endpoint URL), not individual tool names.
+
+    Fix: remove the version suffix and use server-level versioning instead.
+    """
+    if _VERSION_IN_NAME_RE.search(tool_name):
+        return Issue(
+            tool=tool_name,
+            severity="warn",
+            check="tool_name_contains_version",
+            message=(
+                "tool name '{name}' contains a version number — versioning "
+                "belongs in server metadata, not tool names."
+            ).format(name=tool_name),
+        )
+    return None
+
+
 def _check_param_name_uses_hyphen(
     tool_name: str, schema: Dict[str, Any]
 ) -> List[Issue]:
@@ -5609,6 +5646,11 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 78 (tool): name_uses_hyphen
         issue = _check_tool_name_uses_hyphen(name)
+        if issue is not None:
+            issues.append(issue)
+
+        # Check 93: tool_name_contains_version
+        issue = _check_tool_name_contains_version(name)
         if issue is not None:
             issues.append(issue)
 
