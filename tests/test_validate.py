@@ -115,6 +115,7 @@ from agent_friend.validate import (
     _check_required_not_array,
     _check_param_name_all_uppercase,
     _check_required_param_not_in_properties,
+    _check_param_name_has_double_underscore,
 )
 
 
@@ -11590,4 +11591,43 @@ class TestRequiredParamNotInProperties:
 
     def test_empty_schema_passes(self):
         issues = _check_required_param_not_in_properties("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 123: param_name_has_double_underscore
+# ---------------------------------------------------------------------------
+
+
+class TestParamNameHasDoubleUnderscore:
+    """Tests for _check_param_name_has_double_underscore (Check 123)."""
+
+    @staticmethod
+    def _schema(*param_names: str) -> dict:
+        return {
+            "type": "object",
+            "properties": {n: {"type": "string", "description": "A param."} for n in param_names},
+        }
+
+    def test_dunder_prefix_fires(self):
+        issues = _check_param_name_has_double_underscore("tool", self._schema("__type"))
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_has_double_underscore"
+        assert issues[0].severity == "warn"
+
+    def test_dunder_middle_fires(self):
+        issues = _check_param_name_has_double_underscore("tool", self._schema("field__name"))
+        assert len(issues) == 1
+        assert "field__name" in issues[0].message
+
+    def test_dunder_both_ends_fires(self):
+        issues = _check_param_name_has_double_underscore("tool", self._schema("__meta__"))
+        assert len(issues) == 1
+
+    def test_single_underscore_passes(self):
+        issues = _check_param_name_has_double_underscore("tool", self._schema("field_name", "type_id"))
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_has_double_underscore("tool", {})
         assert issues == []

@@ -2478,6 +2478,54 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 123: param_name_has_double_underscore
+# ---------------------------------------------------------------------------
+
+
+def _check_param_name_has_double_underscore(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 123: param_name_has_double_underscore — a parameter name contains
+    a double underscore (``__``).
+
+    Double underscores are a Python convention for "dunder" (double underscore)
+    names like ``__init__`` and ``__class__``.  In MCP tool schemas, parameter
+    names with ``__`` usually indicate a Python implementation detail leaking
+    into the API surface.  Use single underscores::
+
+        # bad — Python implementation details leaking
+        {"__type": {"type": "string", ...}}
+        {"field__name": {"type": "string", ...}}
+        {"__meta__": {"type": "object", ...}}
+
+        # good — clean names
+        {"type": {"type": "string", ...}}
+        {"field_name": {"type": "string", ...}}
+        {"meta": {"type": "object", ...}}
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name in properties:
+        if "__" in param_name:
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="param_name_has_double_underscore",
+                message=(
+                    "param '{param}' contains double underscores — this "
+                    "leaks Python implementation conventions into the API; "
+                    "use single underscores."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
 # Check 122: required_param_not_in_properties
 # ---------------------------------------------------------------------------
 
@@ -7511,6 +7559,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 122: required_param_not_in_properties
         issues.extend(_check_required_param_not_in_properties(name, schema))
+
+        # Check 123: param_name_has_double_underscore
+        issues.extend(_check_param_name_has_double_underscore(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
