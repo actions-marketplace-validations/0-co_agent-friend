@@ -2478,6 +2478,65 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 150: param_type_array_multiple_types
+# ---------------------------------------------------------------------------
+
+
+def _check_param_type_array_multiple_types(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 150: param_type_array_multiple_types — a parameter's ``type``
+    field is a JSON array containing more than one non-null type
+    (e.g., ``["string", "number"]``).
+
+    While valid in JSON Schema, a type array with multiple concrete types is
+    harder to read than an equivalent ``anyOf``.  The ``anyOf`` form is also
+    more expressive since it allows per-type constraints::
+
+        # bad — type array is terse but hard to parse at a glance
+        {"type": ["string", "number"]}
+        {"type": ["string", "integer", "boolean"]}
+
+        # good — anyOf is explicit and allows per-type constraints
+        {"anyOf": [{"type": "string"}, {"type": "number"}]}
+
+    Note: ``["string", "null"]`` (nullable) is **not** flagged — use Check 77
+    (``anyof_null_should_be_optional``) for that pattern.
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return issues
+    for param, pschema in props.items():
+        if not isinstance(pschema, dict):
+            continue
+        ptype = pschema.get("type")
+        if isinstance(ptype, list):
+            non_null_types = [t for t in ptype if t != "null"]
+            if len(non_null_types) > 1:
+                issues.append(
+                    Issue(
+                        tool=tool_name,
+                        severity="warn",
+                        check="param_type_array_multiple_types",
+                        message=(
+                            "tool '{name}' param '{param}' has type array "
+                            "{types} with multiple concrete types — use "
+                            "'anyOf' instead for clarity."
+                        ).format(
+                            name=tool_name,
+                            param=param,
+                            types=ptype,
+                        ),
+                    )
+                )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 149: param_type_has_whitespace
 # ---------------------------------------------------------------------------
 
@@ -9165,6 +9224,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 149: param_type_has_whitespace
         issues.extend(_check_param_type_has_whitespace(name, schema))
+
+        # Check 150: param_type_array_multiple_types
+        issues.extend(_check_param_type_array_multiple_types(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

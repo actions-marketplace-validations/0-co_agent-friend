@@ -142,6 +142,7 @@ from agent_friend.validate import (
     _check_description_has_markdown_link,
     _check_param_type_is_any,
     _check_param_type_has_whitespace,
+    _check_param_type_array_multiple_types,
 )
 
 
@@ -12750,4 +12751,42 @@ class TestParamTypeHasWhitespace:
 
     def test_empty_schema_passes(self):
         issues = _check_param_type_has_whitespace("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 150: param_type_array_multiple_types
+# ---------------------------------------------------------------------------
+
+class TestParamTypeArrayMultipleTypes:
+    def test_string_number_fires(self):
+        schema = {"properties": {"val": {"type": ["string", "number"]}}}
+        issues = _check_param_type_array_multiple_types("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "param_type_array_multiple_types"
+        assert issues[0].severity == "warn"
+
+    def test_three_types_fires(self):
+        schema = {"properties": {"val": {"type": ["string", "integer", "boolean"]}}}
+        issues = _check_param_type_array_multiple_types("tool", schema)
+        assert len(issues) == 1
+
+    def test_string_null_passes(self):
+        # nullable is handled by Check 77, not this check
+        schema = {"properties": {"val": {"type": ["string", "null"]}}}
+        issues = _check_param_type_array_multiple_types("tool", schema)
+        assert issues == []
+
+    def test_single_type_array_passes(self):
+        schema = {"properties": {"val": {"type": ["string"]}}}
+        issues = _check_param_type_array_multiple_types("tool", schema)
+        assert issues == []
+
+    def test_string_type_passes(self):
+        schema = {"properties": {"val": {"type": "string"}}}
+        issues = _check_param_type_array_multiple_types("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_type_array_multiple_types("tool", {})
         assert issues == []
