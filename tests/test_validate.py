@@ -144,6 +144,7 @@ from agent_friend.validate import (
     _check_param_type_has_whitespace,
     _check_param_type_array_multiple_types,
     _check_tool_name_has_double_underscore,
+    _check_description_starts_with_tool_name,
 )
 
 
@@ -12822,4 +12823,64 @@ class TestToolNameHasDoubleUnderscore:
 
     def test_empty_passes(self):
         issue = _check_tool_name_has_double_underscore("")
+        assert issue is None
+
+
+# ---------------------------------------------------------------------------
+# Check 152: description_starts_with_tool_name
+# ---------------------------------------------------------------------------
+
+class TestDescriptionStartsWithToolName:
+    def test_desc_starts_with_name_colon_fires(self):
+        obj = {"name": "search_files", "description": "search_files: searches for files"}
+        issue = _check_description_starts_with_tool_name("search_files", obj, "mcp")
+        assert issue is not None
+        assert issue.check == "description_starts_with_tool_name"
+        assert issue.severity == "warn"
+
+    def test_desc_starts_with_name_space_fires(self):
+        obj = {"name": "get_user", "description": "get_user retrieves user by ID"}
+        issue = _check_description_starts_with_tool_name("get_user", obj, "mcp")
+        assert issue is not None
+
+    def test_desc_starts_with_name_dot_fires(self):
+        obj = {"name": "list_items", "description": "list_items. Returns all items."}
+        issue = _check_description_starts_with_tool_name("list_items", obj, "mcp")
+        assert issue is not None
+
+    def test_desc_starts_with_name_dash_fires(self):
+        obj = {"name": "run_query", "description": "run_query - executes a SQL query"}
+        issue = _check_description_starts_with_tool_name("run_query", obj, "mcp")
+        assert issue is not None
+
+    def test_desc_starts_with_name_case_insensitive_fires(self):
+        obj = {"name": "GetUser", "description": "getuser retrieves user by ID"}
+        issue = _check_description_starts_with_tool_name("GetUser", obj, "mcp")
+        assert issue is not None
+
+    def test_desc_does_not_start_with_name_passes(self):
+        obj = {"name": "search_files", "description": "Search for files matching a pattern"}
+        issue = _check_description_starts_with_tool_name("search_files", obj, "mcp")
+        assert issue is None
+
+    def test_partial_name_match_passes(self):
+        # "search" should not trigger for tool named "search_files"
+        obj = {"name": "search_files", "description": "search for documents"}
+        issue = _check_description_starts_with_tool_name("search_files", obj, "mcp")
+        assert issue is None
+
+    def test_name_word_boundary_no_separator_passes(self):
+        # "get_user" in "get_user_profile" - no separator after name
+        obj = {"name": "get_user", "description": "get_user_profile returns profile"}
+        issue = _check_description_starts_with_tool_name("get_user", obj, "mcp")
+        assert issue is None
+
+    def test_no_desc_passes(self):
+        obj = {"name": "search_files"}
+        issue = _check_description_starts_with_tool_name("search_files", obj, "mcp")
+        assert issue is None
+
+    def test_empty_name_passes(self):
+        obj = {"name": "", "description": "some description"}
+        issue = _check_description_starts_with_tool_name("", obj, "mcp")
         assert issue is None

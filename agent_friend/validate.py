@@ -2478,6 +2478,58 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 152: description_starts_with_tool_name
+# ---------------------------------------------------------------------------
+
+
+def _check_description_starts_with_tool_name(
+    tool_name: str,
+    obj: Dict[str, Any],
+    fmt: str,
+) -> Optional[Issue]:
+    """Check 152: description_starts_with_tool_name — the tool description
+    starts with the tool's own name (verbatim or with a colon/dash separator).
+
+    This is redundant — the model already sees the tool name from the schema;
+    repeating it in the description wastes tokens without adding information::
+
+        # bad — description starts with the tool name
+        {"name": "search_files", "description": "search_files: search for files..."}
+        {"name": "create_record", "description": "create_record - Create a record."}
+
+        # good — description adds new information
+        {"name": "search_files", "description": "Search files in the workspace."}
+
+    Severity: ``warn``.
+    """
+    if not tool_name:
+        return None
+    desc = _get_tool_description(obj, fmt)
+    if not isinstance(desc, str):
+        return None
+    # Strip common separators after the name: ": ", " - ", ". "
+    stripped = desc.strip()
+    name_lower = tool_name.lower()
+    desc_lower = stripped.lower()
+    if not desc_lower.startswith(name_lower):
+        return None
+    # The description must start with the exact tool name
+    rest = stripped[len(tool_name):]
+    if rest and rest[0] not in (":", " ", ".", "-", "\n"):
+        return None  # e.g., "search_files_advanced" shouldn't fire for "search_files"
+    return Issue(
+        tool=tool_name,
+        severity="warn",
+        check="description_starts_with_tool_name",
+        message=(
+            "tool '{name}' description starts with the tool name — the "
+            "name is already visible in the schema; start the description "
+            "with a verb describing what the tool does."
+        ).format(name=tool_name),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Check 151: tool_name_has_double_underscore
 # ---------------------------------------------------------------------------
 
@@ -9267,6 +9319,11 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 151: tool_name_has_double_underscore
         issue = _check_tool_name_has_double_underscore(name)
+        if issue is not None:
+            issues.append(issue)
+
+        # Check 152: description_starts_with_tool_name
+        issue = _check_description_starts_with_tool_name(name, raw_obj, fmt)
         if issue is not None:
             issues.append(issue)
 
