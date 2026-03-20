@@ -2478,6 +2478,64 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 136: param_plural_name_not_array
+# ---------------------------------------------------------------------------
+
+_PLURAL_PARAM_NAMES = frozenset({
+    "ids", "urls", "tags", "keys", "names", "items", "values", "fields",
+    "params", "args", "arguments", "options", "flags", "types", "roles",
+    "permissions", "scopes", "headers", "columns", "rows", "filters",
+    "rules", "paths", "files", "events", "messages", "errors", "results",
+    "records", "entries", "users", "groups", "tokens", "emails",
+})
+
+
+def _check_param_plural_name_not_array(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 136: param_plural_name_not_array — a parameter name is a common
+    plural noun (``ids``, ``tags``, ``urls``, etc.) but the type is not
+    ``"array"``.
+
+    A plural name strongly implies the caller can pass multiple values.
+    Typing it as ``"string"`` forces callers to use comma-separation or
+    other ad-hoc encoding instead of a proper JSON array::
+
+        # bad — ids is plural but typed as string (comma-separated?)
+        {"ids": {"type": "string", "description": "Comma-separated list of IDs"}}
+
+        # good — use an array
+        {"ids": {"type": "array", "items": {"type": "string"}}}
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return issues
+    for param, pschema in props.items():
+        if not isinstance(pschema, dict):
+            continue
+        if param.lower() in _PLURAL_PARAM_NAMES:
+            ptype = pschema.get("type")
+            if ptype is not None and ptype != "array":
+                issues.append(
+                    Issue(
+                        tool=tool_name,
+                        severity="warn",
+                        check="param_plural_name_not_array",
+                        message=(
+                            "tool '{name}' param '{param}' is named as a "
+                            "plural but has type '{t}' — consider using "
+                            "type 'array' to accept multiple values."
+                        ).format(name=tool_name, param=param, t=ptype),
+                    )
+                )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 135: description_has_html_entity
 # ---------------------------------------------------------------------------
 
@@ -8289,6 +8347,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 135: description_has_html_entity
         issues.extend(_check_description_has_html_entity(name, raw_obj, schema, fmt))
+
+        # Check 136: param_plural_name_not_array
+        issues.extend(_check_param_plural_name_not_array(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

@@ -128,6 +128,7 @@ from agent_friend.validate import (
     _check_object_additional_properties_redundant,
     _check_enum_too_many_values,
     _check_description_has_html_entity,
+    _check_param_plural_name_not_array,
 )
 
 
@@ -12156,4 +12157,46 @@ class TestDescriptionHasHtmlEntity:
 
     def test_empty_passes(self):
         issues = self._run(tool_desc="")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 136: param_plural_name_not_array
+# ---------------------------------------------------------------------------
+
+class TestParamPluralNameNotArray:
+    def test_ids_string_fires(self):
+        schema = {"properties": {"ids": {"type": "string"}}}
+        issues = _check_param_plural_name_not_array("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "param_plural_name_not_array"
+        assert issues[0].severity == "warn"
+
+    def test_tags_string_fires(self):
+        schema = {"properties": {"tags": {"type": "string"}}}
+        issues = _check_param_plural_name_not_array("tool", schema)
+        assert len(issues) == 1
+
+    def test_urls_integer_fires(self):
+        schema = {"properties": {"urls": {"type": "integer"}}}
+        issues = _check_param_plural_name_not_array("tool", schema)
+        assert len(issues) == 1
+
+    def test_ids_array_passes(self):
+        schema = {"properties": {"ids": {"type": "array", "items": {"type": "string"}}}}
+        issues = _check_param_plural_name_not_array("tool", schema)
+        assert issues == []
+
+    def test_singular_string_passes(self):
+        schema = {"properties": {"name": {"type": "string"}}}
+        issues = _check_param_plural_name_not_array("tool", schema)
+        assert issues == []
+
+    def test_plural_no_type_passes(self):
+        schema = {"properties": {"ids": {}}}
+        issues = _check_param_plural_name_not_array("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_plural_name_not_array("tool", {})
         assert issues == []
