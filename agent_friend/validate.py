@@ -2132,8 +2132,12 @@ def _check_default_type_mismatch(tool_name: str, schema: Dict[str, Any]) -> List
 # ---------------------------------------------------------------------------
 
 # Name prefixes that, by near-universal convention, signal a boolean parameter.
+# Restricted to verb/auxiliary forms that are unambiguously boolean.
+# Excluded: enable_, disable_, use_, show_, hide_, allow_, include_ — these are
+# commonly used as verb-noun pairs that accept arrays or other types
+# (e.g. include_domains: array, allow_users: array, enable_features: array).
 _BOOL_PREFIX_RE = re.compile(
-    r'^(is|has|should|can|was|will|did|are|were|enable|disable|use|show|hide|allow|include)_',
+    r'^(is|has|should|can|was|will|did|are|were)_',
     re.IGNORECASE,
 )
 

@@ -8957,21 +8957,25 @@ class TestCheckParamNameImpliesBoolean:
         issues = _check_param_name_implies_boolean("my_tool", self._schema("was_deleted", "string"))
         assert len(issues) == 1
 
-    def test_enable_prefix_string_fires(self):
+    def test_enable_prefix_no_fire(self):
+        # excluded — "enable_*" can legitimately be an array or string action
         issues = _check_param_name_implies_boolean("my_tool", self._schema("enable_debug", "string"))
-        assert len(issues) == 1
+        assert issues == []
 
-    def test_use_prefix_string_fires(self):
+    def test_use_prefix_no_fire(self):
+        # excluded — "use_*" can legitimately be a non-boolean (e.g. use_strategy: string)
         issues = _check_param_name_implies_boolean("my_tool", self._schema("use_cache", "string"))
-        assert len(issues) == 1
+        assert issues == []
 
-    def test_include_prefix_string_fires(self):
-        issues = _check_param_name_implies_boolean("my_tool", self._schema("include_metadata", "string"))
-        assert len(issues) == 1
+    def test_include_prefix_no_fire(self):
+        # excluded — "include_*" is commonly array (include_domains: array)
+        issues = _check_param_name_implies_boolean("my_tool", self._schema("include_metadata", "array"))
+        assert issues == []
 
-    def test_show_prefix_integer_fires(self):
+    def test_show_prefix_no_fire(self):
+        # excluded — "show_*" can legitimately be a list or other type
         issues = _check_param_name_implies_boolean("my_tool", self._schema("show_details", "integer"))
-        assert len(issues) == 1
+        assert issues == []
 
     # --- Cases that should NOT fire ---
 
