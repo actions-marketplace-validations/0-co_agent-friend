@@ -2478,6 +2478,46 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 157: param_name_ends_with_list
+# ---------------------------------------------------------------------------
+
+
+def _check_param_name_ends_with_list(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 157: param_name_ends_with_list — a parameter name ends with
+    ``_list`` (e.g. ``file_list``, ``user_list``).
+
+    The ``_list`` suffix is a type annotation baked into the name — a pattern
+    already flagged by ``param_name_starts_with_type`` and
+    ``param_name_ends_with_type``.  The conventional alternative is the plural
+    form (``files``, ``users``) combined with ``"type": "array"``.
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return issues
+    for pname in props:
+        if isinstance(pname, str) and pname.lower().endswith("_list"):
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="param_name_ends_with_list",
+                message=(
+                    "param '{pname}' name ends with '_list'; prefer the plural "
+                    "form with type:array (e.g. '{stem}s' or '{stem}es').".format(
+                        pname=pname,
+                        stem=pname[:-5],  # strip "_list"
+                    )
+                ),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 156: description_has_changelog_entry
 # ---------------------------------------------------------------------------
 
@@ -9546,6 +9586,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 156: description_has_changelog_entry
         issues.extend(_check_description_has_changelog_entry(name, raw_obj, schema, fmt))
+
+        # Check 157: param_name_ends_with_list
+        issues.extend(_check_param_name_ends_with_list(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

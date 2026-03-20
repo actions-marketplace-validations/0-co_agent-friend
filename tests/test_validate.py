@@ -149,6 +149,7 @@ from agent_friend.validate import (
     _check_description_has_windows_path,
     _check_enum_string_has_whitespace,
     _check_description_has_changelog_entry,
+    _check_param_name_ends_with_list,
 )
 
 
@@ -13079,4 +13080,47 @@ class TestDescriptionHasChangelogEntry:
         # "v2.0" alone shouldn't fire without the preceding keyword
         obj = {"name": "tool", "description": "Use API v2.0 format."}
         issues = _check_description_has_changelog_entry("tool", obj, {}, "mcp")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 157: param_name_ends_with_list
+# ---------------------------------------------------------------------------
+
+class TestParamNameEndsWithList:
+    def test_file_list_fires(self):
+        schema = {"properties": {"file_list": {"type": "array"}}}
+        issues = _check_param_name_ends_with_list("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_ends_with_list"
+        assert issues[0].severity == "warn"
+
+    def test_user_list_fires(self):
+        schema = {"properties": {"user_list": {"type": "array"}}}
+        issues = _check_param_name_ends_with_list("tool", schema)
+        assert len(issues) == 1
+
+    def test_id_list_fires(self):
+        schema = {"properties": {"id_list": {"type": "array"}}}
+        issues = _check_param_name_ends_with_list("tool", schema)
+        assert len(issues) == 1
+
+    def test_plural_passes(self):
+        schema = {"properties": {"files": {"type": "array"}}}
+        issues = _check_param_name_ends_with_list("tool", schema)
+        assert issues == []
+
+    def test_blocklist_passes(self):
+        # "blocklist" ends with "list" but not "_list"
+        schema = {"properties": {"blocklist": {"type": "array"}}}
+        issues = _check_param_name_ends_with_list("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_ends_with_list("tool", {})
+        assert issues == []
+
+    def test_no_properties_passes(self):
+        schema = {"type": "object"}
+        issues = _check_param_name_ends_with_list("tool", schema)
         assert issues == []
