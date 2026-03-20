@@ -132,6 +132,7 @@ from agent_friend.validate import (
     _check_required_param_null_default,
     _check_param_empty_schema,
     _check_param_name_describes_output,
+    _check_tool_count_exceeds_limit,
 )
 
 
@@ -12327,4 +12328,37 @@ class TestParamNameDescribesOutput:
 
     def test_empty_schema_passes(self):
         issues = _check_param_name_describes_output("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 140: tool_count_exceeds_limit
+# ---------------------------------------------------------------------------
+
+class TestToolCountExceedsLimit:
+    def test_51_tools_fires(self):
+        names = [f"tool_{i}" for i in range(51)]
+        issues = _check_tool_count_exceeds_limit(names)
+        assert len(issues) == 1
+        assert issues[0].check == "tool_count_exceeds_limit"
+        assert issues[0].severity == "warn"
+        assert "51" in issues[0].message
+
+    def test_100_tools_fires_once(self):
+        names = [f"tool_{i}" for i in range(100)]
+        issues = _check_tool_count_exceeds_limit(names)
+        assert len(issues) == 1
+
+    def test_50_tools_passes(self):
+        names = [f"tool_{i}" for i in range(50)]
+        issues = _check_tool_count_exceeds_limit(names)
+        assert issues == []
+
+    def test_10_tools_passes(self):
+        names = [f"tool_{i}" for i in range(10)]
+        issues = _check_tool_count_exceeds_limit(names)
+        assert issues == []
+
+    def test_empty_passes(self):
+        issues = _check_tool_count_exceeds_limit([])
         assert issues == []

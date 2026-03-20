@@ -2478,6 +2478,49 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 140: tool_count_exceeds_limit
+# ---------------------------------------------------------------------------
+
+_MAX_TOOL_COUNT = 50
+
+
+def _check_tool_count_exceeds_limit(names: List[str]) -> List[Issue]:
+    """Check 140: tool_count_exceeds_limit — the server exposes more than
+    50 tools.
+
+    Research shows LLM tool-selection accuracy degrades sharply once a
+    server exceeds ~50 tools.  Large tool counts also significantly inflate
+    the system prompt token budget.  Prefer splitting a large tool surface
+    into focused sub-servers or using tool namespacing::
+
+        # bad — 80-tool server floods the context window
+        ["tool_1", "tool_2", ..., "tool_80"]
+
+        # good — focused servers with ≤50 tools each
+        # Split into domain-specific sub-servers
+
+    Fires **once** per tool list, not per tool.  The issue is anchored to
+    the first tool name.
+
+    Severity: ``warn``.
+    """
+    if len(names) <= _MAX_TOOL_COUNT:
+        return []
+    return [
+        Issue(
+            tool=names[0],
+            severity="warn",
+            check="tool_count_exceeds_limit",
+            message=(
+                "server has {n} tools (recommended max: {max}) — large tool "
+                "counts degrade LLM selection accuracy and inflate token "
+                "usage; consider splitting into focused sub-servers."
+            ).format(n=len(names), max=_MAX_TOOL_COUNT),
+        )
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Check 139: param_name_describes_output
 # ---------------------------------------------------------------------------
 
@@ -8774,6 +8817,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
         for n, fmt, raw, _schema in tool_data
     ]
     issues.extend(_check_description_duplicate(_tool_descs_61))
+
+    # Check 140: tool_count_exceeds_limit (cross-tool)
+    issues.extend(_check_tool_count_exceeds_limit(names))
 
     # Calculate stats
     errors = sum(1 for i in issues if i.severity == "error")
