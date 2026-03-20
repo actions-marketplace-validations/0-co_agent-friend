@@ -2478,6 +2478,58 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 105: schema_has_definitions
+# ---------------------------------------------------------------------------
+
+
+def _check_schema_has_definitions(
+    tool_name: str,
+    obj: Dict[str, Any],
+    fmt: str = "mcp",
+) -> Optional[Issue]:
+    """Check 105: schema_has_definitions — the tool's input schema includes
+    a ``definitions`` or ``$defs`` section.
+
+    In MCP context, tool schemas are self-contained blobs.  A
+    ``definitions`` section implies ``$ref`` usage, which is unresolvable
+    (see Check 101).  Even without ``$ref``, the definitions section adds
+    tokens that the LLM will see but never directly use::
+
+        # bad — definitions are wasted tokens
+        {"type": "object", "properties": {...}, "definitions": {"User": {...}}}
+
+        # good — inline every schema; omit definitions
+        {"type": "object", "properties": {...}}
+
+    Severity: ``warn``.
+    """
+    # Get the inputSchema object for the tool
+    schema: Any = None
+    if fmt == "mcp":
+        schema = obj.get("inputSchema")
+    elif fmt == "openai":
+        schema = obj.get("parameters")
+    elif fmt in ("anthropic", "google"):
+        schema = obj.get("input_schema")
+
+    if not isinstance(schema, dict):
+        return None
+
+    if "definitions" in schema or "$defs" in schema:
+        return Issue(
+            tool=tool_name,
+            severity="warn",
+            check="schema_has_definitions",
+            message=(
+                "tool '{name}' inputSchema has a 'definitions'/'$defs' "
+                "section — in MCP context $refs are unresolvable; inline "
+                "schemas and remove the definitions block."
+            ).format(name=tool_name),
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Check 104: enum_values_inconsistent_case
 # ---------------------------------------------------------------------------
 
@@ -6426,6 +6478,11 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 104: enum_values_inconsistent_case
         issues.extend(_check_enum_values_inconsistent_case(name, schema))
+
+        # Check 105: schema_has_definitions
+        issue = _check_schema_has_definitions(name, raw_obj, fmt)
+        if issue is not None:
+            issues.append(issue)
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

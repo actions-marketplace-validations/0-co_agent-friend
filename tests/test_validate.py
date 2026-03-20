@@ -97,6 +97,7 @@ from agent_friend.validate import (
     _check_tool_name_too_generic,
     _check_string_minlength_zero,
     _check_enum_values_inconsistent_case,
+    _check_schema_has_definitions,
 )
 
 
@@ -10707,3 +10708,50 @@ class TestEnumValuesInconsistentCase:
     def test_empty_schema_passes(self):
         issues = _check_enum_values_inconsistent_case("tool", {})
         assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 105: schema_has_definitions
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaHasDefinitions:
+    """Tests for _check_schema_has_definitions (Check 105)."""
+
+    def test_definitions_fires(self):
+        obj = {
+            "description": "A tool.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "definitions": {"User": {"type": "object"}},
+            },
+        }
+        issue = _check_schema_has_definitions("tool", obj, "mcp")
+        assert issue is not None
+        assert issue.check == "schema_has_definitions"
+        assert issue.severity == "warn"
+
+    def test_defs_fires(self):
+        obj = {
+            "description": "A tool.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "$defs": {"Item": {"type": "string"}},
+            },
+        }
+        issue = _check_schema_has_definitions("tool", obj, "mcp")
+        assert issue is not None
+
+    def test_no_definitions_passes(self):
+        obj = {
+            "description": "A tool.",
+            "inputSchema": {"type": "object", "properties": {}},
+        }
+        issue = _check_schema_has_definitions("tool", obj, "mcp")
+        assert issue is None
+
+    def test_empty_obj_passes(self):
+        issue = _check_schema_has_definitions("tool", {}, "mcp")
+        assert issue is None
