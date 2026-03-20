@@ -2478,6 +2478,65 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 139: param_name_describes_output
+# ---------------------------------------------------------------------------
+
+_OUTPUT_PARAM_NAMES = frozenset({
+    "result", "results", "response", "output", "outputs",
+    "return", "return_value", "returned", "out", "retval",
+    "ret", "answer", "reply", "feedback",
+})
+
+_OUTPUT_PARAM_PREFIXES = ("out_", "output_", "result_", "response_", "returned_")
+
+
+def _check_param_name_describes_output(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 139: param_name_describes_output — a parameter name implies it
+    is an output or return value rather than an input.
+
+    MCP ``inputSchema`` describes what the **caller provides** to the tool.
+    Parameter names like ``result``, ``response``, ``output``, or ``out_*``
+    suggest the caller is receiving data, not sending it::
+
+        # bad — these sound like outputs, not inputs
+        {"result": {"type": "string"}}
+        {"output_format": {"type": "string"}}  # ambiguous but common mistake
+
+        # good — clear input names
+        {"format": {"type": "string"}}
+        {"query": {"type": "string"}}
+
+    Note: ``output_format`` is a borderline case — the check only fires for
+    names that are *purely* output-descriptive, not compound names.
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return issues
+    for param in props:
+        lower = param.lower()
+        if lower in _OUTPUT_PARAM_NAMES:
+            issues.append(
+                Issue(
+                    tool=tool_name,
+                    severity="warn",
+                    check="param_name_describes_output",
+                    message=(
+                        "tool '{name}' param '{param}' sounds like an output "
+                        "or return value — inputSchema params should describe "
+                        "inputs, not outputs."
+                    ).format(name=tool_name, param=param),
+                )
+            )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 138: param_empty_schema
 # ---------------------------------------------------------------------------
 
@@ -8463,6 +8522,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 138: param_empty_schema
         issues.extend(_check_param_empty_schema(name, schema))
+
+        # Check 139: param_name_describes_output
+        issues.extend(_check_param_name_describes_output(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

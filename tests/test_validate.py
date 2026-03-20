@@ -131,6 +131,7 @@ from agent_friend.validate import (
     _check_param_plural_name_not_array,
     _check_required_param_null_default,
     _check_param_empty_schema,
+    _check_param_name_describes_output,
 )
 
 
@@ -12284,4 +12285,46 @@ class TestParamEmptySchema:
 
     def test_empty_outer_schema_passes(self):
         issues = _check_param_empty_schema("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 139: param_name_describes_output
+# ---------------------------------------------------------------------------
+
+class TestParamNameDescribesOutput:
+    def test_result_fires(self):
+        schema = {"properties": {"result": {"type": "string"}}}
+        issues = _check_param_name_describes_output("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_describes_output"
+        assert issues[0].severity == "warn"
+
+    def test_response_fires(self):
+        schema = {"properties": {"response": {"type": "object"}}}
+        issues = _check_param_name_describes_output("tool", schema)
+        assert len(issues) == 1
+
+    def test_output_fires(self):
+        schema = {"properties": {"output": {"type": "string"}}}
+        issues = _check_param_name_describes_output("tool", schema)
+        assert len(issues) == 1
+
+    def test_return_fires(self):
+        schema = {"properties": {"return": {"type": "string"}}}
+        issues = _check_param_name_describes_output("tool", schema)
+        assert len(issues) == 1
+
+    def test_query_passes(self):
+        schema = {"properties": {"query": {"type": "string"}}}
+        issues = _check_param_name_describes_output("tool", schema)
+        assert issues == []
+
+    def test_format_passes(self):
+        schema = {"properties": {"format": {"type": "string"}}}
+        issues = _check_param_name_describes_output("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_describes_output("tool", {})
         assert issues == []
