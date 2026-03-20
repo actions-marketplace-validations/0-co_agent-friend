@@ -104,6 +104,7 @@ from agent_friend.validate import (
     _check_description_has_parenthetical_type,
     _check_param_name_starts_with_type,
     _check_param_name_ends_with_type,
+    _check_enum_duplicate_values,
 )
 
 
@@ -11043,4 +11044,64 @@ class TestParamNameEndsWithType:
 
     def test_empty_schema_passes(self):
         issues = _check_param_name_ends_with_type("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 112: enum_duplicate_values
+# ---------------------------------------------------------------------------
+
+
+class TestEnumDuplicateValues:
+    """Tests for _check_enum_duplicate_values (Check 112)."""
+
+    @staticmethod
+    def _schema(param_name: str, enum_vals: list) -> dict:
+        return {
+            "type": "object",
+            "properties": {param_name: {"type": "string", "enum": enum_vals}},
+        }
+
+    def test_duplicate_string_fires(self):
+        issues = _check_enum_duplicate_values(
+            "tool", self._schema("status", ["active", "inactive", "active"])
+        )
+        assert len(issues) == 1
+        assert issues[0].check == "enum_duplicate_values"
+        assert issues[0].severity == "error"
+
+    def test_duplicate_reported_in_message(self):
+        issues = _check_enum_duplicate_values(
+            "tool", self._schema("mode", ["read", "write", "read"])
+        )
+        assert len(issues) == 1
+        assert "read" in issues[0].message
+
+    def test_multiple_duplicates_fires_once(self):
+        issues = _check_enum_duplicate_values(
+            "tool", self._schema("x", ["a", "b", "a", "b", "c"])
+        )
+        assert len(issues) == 1
+
+    def test_unique_values_passes(self):
+        issues = _check_enum_duplicate_values(
+            "tool", self._schema("status", ["active", "inactive", "archived"])
+        )
+        assert issues == []
+
+    def test_single_value_enum_passes(self):
+        issues = _check_enum_duplicate_values(
+            "tool", self._schema("format", ["json"])
+        )
+        assert issues == []
+
+    def test_no_enum_passes(self):
+        issues = _check_enum_duplicate_values(
+            "tool",
+            {"type": "object", "properties": {"name": {"type": "string"}}},
+        )
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_enum_duplicate_values("tool", {})
         assert issues == []

@@ -2478,6 +2478,71 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 112: enum_duplicate_values
+# ---------------------------------------------------------------------------
+
+
+def _check_enum_duplicate_values(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 112: enum_duplicate_values — an enum array contains duplicate
+    values.
+
+    JSON Schema requires enum values to be unique.  Duplicate entries are a
+    copy-paste error and may confuse model inference about valid choices::
+
+        # bad — "active" appears twice
+        {"status": {"type": "string", "enum": ["active", "inactive", "active"]}}
+
+        # good — unique values
+        {"status": {"type": "string", "enum": ["active", "inactive", "archived"]}}
+
+    Severity: ``error``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    def _check_props(props: Dict[str, Any], parent: str) -> None:
+        for param_name, param_schema in props.items():
+            if not isinstance(param_schema, dict):
+                continue
+            enum_vals = param_schema.get("enum")
+            if not isinstance(enum_vals, list):
+                continue
+            # Deduplicate using JSON representation (handles None, bool, etc.)
+            serialized = [json.dumps(v, sort_keys=True) for v in enum_vals]
+            seen: set = set()
+            dupes = []
+            for s in serialized:
+                if s in seen:
+                    dupes.append(s)
+                seen.add(s)
+            if dupes:
+                label = "{}/{}".format(parent, param_name) if parent else param_name
+                issues.append(Issue(
+                    tool=tool_name,
+                    severity="error",
+                    check="enum_duplicate_values",
+                    message=(
+                        "param '{param}' enum contains duplicate value(s): "
+                        "{dupes} — enum values must be unique."
+                    ).format(
+                        param=label,
+                        dupes=", ".join(sorted(set(dupes))),
+                    ),
+                ))
+            # Recurse into nested object properties
+            nested = param_schema.get("properties")
+            if isinstance(nested, dict):
+                _check_props(nested, param_name)
+
+    _check_props(properties, "")
+    return issues
+
+
 # Check 111: param_name_ends_with_type
 # ---------------------------------------------------------------------------
 
@@ -6844,6 +6909,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 111: param_name_ends_with_type
         issues.extend(_check_param_name_ends_with_type(name, schema))
+
+        # Check 112: enum_duplicate_values
+        issues.extend(_check_enum_duplicate_values(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
