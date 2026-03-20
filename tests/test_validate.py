@@ -78,6 +78,7 @@ from agent_friend.validate import (
     _check_param_nullable_field,
     _check_schema_has_x_field,
     _check_default_violates_minimum,
+    _check_param_name_single_char,
 )
 
 
@@ -9741,4 +9742,56 @@ class TestDefaultViolatesMinimum:
 
     def test_empty_schema_passes(self):
         issues = _check_default_violates_minimum("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for Check 86: param_name_single_char
+# ---------------------------------------------------------------------------
+
+
+class TestParamNameSingleChar:
+    """Tests for Check 86: param_name_single_char."""
+
+    def _schema(self, *param_names):
+        return {
+            "type": "object",
+            "properties": {
+                p: {"type": "string", "description": f"The {p} value."}
+                for p in param_names
+            },
+        }
+
+    def test_single_char_fires(self):
+        issues = _check_param_name_single_char("tool", self._schema("q"))
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_single_char"
+        assert issues[0].severity == "warn"
+
+    def test_n_fires(self):
+        issues = _check_param_name_single_char("tool", self._schema("n"))
+        assert len(issues) == 1
+
+    def test_k_fires(self):
+        issues = _check_param_name_single_char("tool", self._schema("k"))
+        assert len(issues) == 1
+
+    def test_multi_char_passes(self):
+        issues = _check_param_name_single_char("tool", self._schema("query", "limit", "offset"))
+        assert issues == []
+
+    def test_two_char_passes(self):
+        issues = _check_param_name_single_char("tool", self._schema("id"))
+        assert issues == []
+
+    def test_multiple_single_char_all_flagged(self):
+        issues = _check_param_name_single_char("tool", self._schema("n", "q", "k", "limit"))
+        assert len(issues) == 3
+
+    def test_no_properties_passes(self):
+        issues = _check_param_name_single_char("tool", {"type": "object"})
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_single_char("tool", {})
         assert issues == []

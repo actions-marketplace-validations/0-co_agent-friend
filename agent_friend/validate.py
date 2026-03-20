@@ -2869,6 +2869,57 @@ def _check_default_violates_minimum(
 
 
 # ---------------------------------------------------------------------------
+# Check 86: param_name_single_char
+# ---------------------------------------------------------------------------
+
+
+def _check_param_name_single_char(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 86: param_name_single_char — a parameter name is a single
+    character.
+
+    Single-character parameter names (``n``, ``q``, ``k``, ``x``) are
+    opaque.  Models infer parameter meaning from the name; a one-letter name
+    forces the model to rely entirely on the description — and descriptions
+    are often short or missing.  Clear names improve accuracy::
+
+        # bad — opaque; what is 'n', 'q'?
+        {"n": {"type": "integer"}, "q": {"type": "string"}}
+
+        # good — self-documenting
+        {"limit": {"type": "integer"}, "query": {"type": "string"}}
+
+    Exception: single-character names that are standard abbreviations in
+    their domain (``x``, ``y``, ``z`` in a coordinate system or math
+    context) are acceptable, but such cases are rare and can be suppressed
+    manually.
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name in properties:
+        if not isinstance(param_name, str):
+            continue
+        if len(param_name) == 1:
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="param_name_single_char",
+                message=(
+                    "param '{param}' has a single-character name; use a "
+                    "descriptive name instead (e.g., 'query', 'limit', 'offset')."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -5433,6 +5484,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 85: default_violates_minimum
         issues.extend(_check_default_violates_minimum(name, schema))
+
+        # Check 86: param_name_single_char
+        issues.extend(_check_param_name_single_char(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.
