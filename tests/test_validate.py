@@ -71,6 +71,7 @@ from agent_friend.validate import (
     _check_anyof_null_should_be_optional,
     _check_tool_name_uses_hyphen,
     _check_param_name_uses_hyphen,
+    _check_description_has_example,
 )
 
 
@@ -9214,3 +9215,87 @@ class TestCheckNameUsesHyphen:
         issues = _check_param_name_uses_hyphen("my_tool", schema)
         assert len(issues) == 1
         assert "auth-token" in issues[0].message
+
+
+# ---------------------------------------------------------------------------
+# Tests for Check 79: description_has_example
+# ---------------------------------------------------------------------------
+
+
+class TestDescriptionHasExample:
+    """Tests for Check 79: description_has_example."""
+
+    def _schema(self, param, desc):
+        return {
+            "type": "object",
+            "properties": {
+                param: {"type": "string", "description": desc},
+            },
+        }
+
+    def test_eg_fires(self):
+        issues = _check_description_has_example("tool", self._schema("city", "The city name, e.g. 'London'."))
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_example"
+        assert issues[0].severity == "warn"
+
+    def test_eg_with_comma_fires(self):
+        issues = _check_description_has_example("tool", self._schema("q", "Search query, e.g., 'SELECT * FROM users'."))
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_example"
+
+    def test_for_example_fires(self):
+        issues = _check_description_has_example("tool", self._schema("format", "Output format. For example, 'json' or 'csv'."))
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_example"
+
+    def test_example_colon_fires(self):
+        issues = _check_description_has_example("tool", self._schema("status", "Job status. Example: running"))
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_example"
+
+    def test_such_as_fires(self):
+        issues = _check_description_has_example("tool", self._schema("lang", "Language code such as 'en' or 'fr'."))
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_example"
+
+    def test_like_quoted_fires(self):
+        issues = _check_description_has_example("tool", self._schema("color", "A CSS color like '#ff0000'."))
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_example"
+
+    def test_parenthetical_eg_fires(self):
+        issues = _check_description_has_example("tool", self._schema("id", "Record ID (e.g. user-123)"))
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_example"
+
+    def test_clean_desc_passes(self):
+        issues = _check_description_has_example("tool", self._schema("city", "Name of the city to look up."))
+        assert issues == []
+
+    def test_no_properties_passes(self):
+        issues = _check_description_has_example("tool", {"type": "object"})
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_description_has_example("tool", {})
+        assert issues == []
+
+    def test_multiple_params_each_flagged(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "City, e.g. London"},
+                "lang": {"type": "string", "description": "Language such as en"},
+                "limit": {"type": "integer", "description": "Max results."},
+            },
+        }
+        issues = _check_description_has_example("tool", schema)
+        assert len(issues) == 2
+        params = {i.message.split("'")[1] for i in issues}
+        assert params == {"city", "lang"}
+
+    def test_like_without_quotes_passes(self):
+        """'like' in descriptions is only flagged when followed by a quote."""
+        issues = _check_description_has_example("tool", self._schema("key", "Act like a filter key."))
+        assert issues == []

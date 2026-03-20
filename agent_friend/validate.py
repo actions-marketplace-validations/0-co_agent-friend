@@ -2412,6 +2412,69 @@ def _check_param_name_uses_hyphen(
 
 
 # ---------------------------------------------------------------------------
+# Check 79: description_has_example
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+_EXAMPLE_PATTERNS = _re.compile(
+    r"\be\.g\.[\s,]"          # e.g., or e.g. followed by space
+    r"|\bfor example\b"       # for example
+    r"|\bexample:\s"          # example: <value>
+    r"|\(e\.g[.,]"            # (e.g. or (e.g,
+    r"|\bsuch as\b"           # such as
+    r"|\blike\s+['\"`]"       # like 'foo' or like "bar"
+    r"|\be\.g\.$",            # e.g. at end of string
+    _re.IGNORECASE,
+)
+
+
+def _check_description_has_example(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 79: description_has_example — a parameter description contains
+    an inline example (``e.g.``, ``for example``, ``example:``, ``such as``,
+    ``like 'x'``) instead of using the JSON Schema ``examples`` field.
+
+    Inline examples inside descriptions waste tokens, mix semantics with
+    usage hints, and become stale.  The ``examples`` array is the correct
+    place for them::
+
+        # bad — 60+ tokens consumed describing the example
+        {"description": "The city name, e.g. 'London' or 'New York'"}
+
+        # good — description is semantic, example is structured
+        {"description": "City to look up", "examples": ["London", "New York"]}
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        desc = param_schema.get("description", "")
+        if not isinstance(desc, str) or not desc:
+            continue
+        if _EXAMPLE_PATTERNS.search(desc):
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="description_has_example",
+                message=(
+                    "param '{param}' description contains an inline example "
+                    "(e.g. / for example / such as); use the 'examples' field "
+                    "instead."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -4955,6 +5018,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 78 (param): name_uses_hyphen
         issues.extend(_check_param_name_uses_hyphen(name, schema))
+
+        # Check 79: description_has_example
+        issues.extend(_check_description_has_example(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.
