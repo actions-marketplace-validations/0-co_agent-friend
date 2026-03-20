@@ -141,6 +141,7 @@ from agent_friend.validate import (
     _check_description_uses_future_tense,
     _check_description_has_markdown_link,
     _check_param_type_is_any,
+    _check_param_type_has_whitespace,
 )
 
 
@@ -12712,4 +12713,41 @@ class TestParamTypeIsAny:
 
     def test_empty_schema_passes(self):
         issues = _check_param_type_is_any("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 149: param_type_has_whitespace
+# ---------------------------------------------------------------------------
+
+class TestParamTypeHasWhitespace:
+    def test_leading_space_fires(self):
+        schema = {"properties": {"q": {"type": " string"}}}
+        issues = _check_param_type_has_whitespace("tool", schema)
+        assert len(issues) == 1
+        assert issues[0].check == "param_type_has_whitespace"
+        assert issues[0].severity == "error"
+
+    def test_trailing_space_fires(self):
+        schema = {"properties": {"n": {"type": "integer "}}}
+        issues = _check_param_type_has_whitespace("tool", schema)
+        assert len(issues) == 1
+
+    def test_both_sides_fires(self):
+        schema = {"properties": {"b": {"type": " boolean "}}}
+        issues = _check_param_type_has_whitespace("tool", schema)
+        assert len(issues) == 1
+
+    def test_clean_type_passes(self):
+        schema = {"properties": {"q": {"type": "string"}}}
+        issues = _check_param_type_has_whitespace("tool", schema)
+        assert issues == []
+
+    def test_no_type_passes(self):
+        schema = {"properties": {"q": {"description": "A query."}}}
+        issues = _check_param_type_has_whitespace("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_type_has_whitespace("tool", {})
         assert issues == []

@@ -2478,6 +2478,57 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 149: param_type_has_whitespace
+# ---------------------------------------------------------------------------
+
+
+def _check_param_type_has_whitespace(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 149: param_type_has_whitespace — a parameter's ``type`` value
+    has leading or trailing whitespace (e.g., ``" string"``, ``"integer "``).
+
+    Whitespace in type strings is a serialization artifact and will cause
+    JSON Schema validators to reject the type as unknown.  The type field
+    must exactly match ``"string"``, ``"integer"``, ``"number"``,
+    ``"boolean"``, ``"array"``, ``"object"``, or ``"null"``::
+
+        # bad — whitespace causes unknown type error
+        {"type": " string"}
+        {"type": "integer "}
+
+        # good — exact type name, no whitespace
+        {"type": "string"}
+        {"type": "integer"}
+
+    Severity: ``error``.
+    """
+    issues: List[Issue] = []
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return issues
+    for param, pschema in props.items():
+        if not isinstance(pschema, dict):
+            continue
+        ptype = pschema.get("type")
+        if isinstance(ptype, str) and ptype != ptype.strip():
+            issues.append(
+                Issue(
+                    tool=tool_name,
+                    severity="error",
+                    check="param_type_has_whitespace",
+                    message=(
+                        "tool '{name}' param '{param}' type '{t}' has "
+                        "leading or trailing whitespace — use the exact "
+                        "JSON Schema type name."
+                    ).format(name=tool_name, param=param, t=repr(ptype)),
+                )
+            )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 148: param_type_is_any
 # ---------------------------------------------------------------------------
 
@@ -9111,6 +9162,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 148: param_type_is_any
         issues.extend(_check_param_type_is_any(name, schema))
+
+        # Check 149: param_type_has_whitespace
+        issues.extend(_check_param_type_has_whitespace(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
