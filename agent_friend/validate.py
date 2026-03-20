@@ -2478,6 +2478,69 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 131: description_has_ellipsis
+# ---------------------------------------------------------------------------
+
+
+def _check_description_has_ellipsis(
+    tool_name: str,
+    obj: Dict[str, Any],
+    schema: Dict[str, Any],
+    fmt: str,
+) -> List[Issue]:
+    """Check 131: description_has_ellipsis — a tool or parameter description
+    ends with an ellipsis (``...``).
+
+    A trailing ellipsis almost always means the description was cut off,
+    never finished, or was copied from UI/marketing copy.  Every description
+    should be a complete, standalone sentence::
+
+        # bad — truncated
+        {"description": "Searches the database and returns..."}
+        {"description": "One of the following values..."}
+
+        # good — complete
+        {"description": "Search the database and return matching records."}
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+    tool_desc = _get_tool_description(obj, fmt)
+    if isinstance(tool_desc, str) and tool_desc.rstrip().endswith("..."):
+        issues.append(
+            Issue(
+                tool=tool_name,
+                severity="warn",
+                check="description_has_ellipsis",
+                message=(
+                    "tool '{name}' description ends with '...' — the "
+                    "description appears truncated; complete the sentence."
+                ).format(name=tool_name),
+            )
+        )
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        for param, pschema in props.items():
+            if not isinstance(pschema, dict):
+                continue
+            desc = pschema.get("description", "")
+            if isinstance(desc, str) and desc.rstrip().endswith("..."):
+                issues.append(
+                    Issue(
+                        tool=tool_name,
+                        severity="warn",
+                        check="description_has_ellipsis",
+                        message=(
+                            "tool '{name}' param '{param}' description ends "
+                            "with '...' — the description appears truncated; "
+                            "complete the sentence."
+                        ).format(name=tool_name, param=param),
+                    )
+                )
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 130: enum_mixed_types
 # ---------------------------------------------------------------------------
 
@@ -7960,6 +8023,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 130: enum_mixed_types
         issues.extend(_check_enum_mixed_types(name, schema))
+
+        # Check 131: description_has_ellipsis
+        issues.extend(_check_description_has_ellipsis(name, raw_obj, schema, fmt))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

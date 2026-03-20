@@ -123,6 +123,7 @@ from agent_friend.validate import (
     _check_schema_type_not_object,
     _check_description_has_trailing_colon,
     _check_enum_mixed_types,
+    _check_description_has_ellipsis,
 )
 
 
@@ -11929,4 +11930,54 @@ class TestEnumMixedTypes:
 
     def test_empty_schema_passes(self):
         issues = _check_enum_mixed_types("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 131: description_has_ellipsis
+# ---------------------------------------------------------------------------
+
+class TestDescriptionHasEllipsis:
+    def _run(self, tool_desc=None, param_desc=None):
+        obj = {}
+        if tool_desc is not None:
+            obj["description"] = tool_desc
+        schema = {}
+        if param_desc is not None:
+            schema["properties"] = {"val": {"type": "string", "description": param_desc}}
+        return _check_description_has_ellipsis("tool", obj, schema, "mcp")
+
+    def test_tool_desc_ellipsis_fires(self):
+        issues = self._run(tool_desc="Searches the database and returns...")
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_ellipsis"
+        assert issues[0].severity == "warn"
+
+    def test_tool_desc_ellipsis_with_spaces_fires(self):
+        issues = self._run(tool_desc="Do something...   ")
+        assert len(issues) == 1
+
+    def test_param_desc_ellipsis_fires(self):
+        issues = self._run(param_desc="One of the following values...")
+        assert len(issues) == 1
+        assert "val" in issues[0].message
+
+    def test_both_fire(self):
+        issues = self._run(tool_desc="Does stuff...", param_desc="Options...")
+        assert len(issues) == 2
+
+    def test_no_ellipsis_passes(self):
+        issues = self._run(tool_desc="Search the database.")
+        assert issues == []
+
+    def test_ellipsis_in_middle_passes(self):
+        issues = self._run(tool_desc="Values like a...z are valid.")
+        assert issues == []
+
+    def test_empty_passes(self):
+        issues = self._run(tool_desc="")
+        assert issues == []
+
+    def test_no_desc_passes(self):
+        issues = self._run()
         assert issues == []
