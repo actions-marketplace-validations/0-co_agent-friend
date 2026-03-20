@@ -2478,6 +2478,74 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 104: enum_values_inconsistent_case
+# ---------------------------------------------------------------------------
+
+
+def _check_enum_values_inconsistent_case(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 104: enum_values_inconsistent_case — an enum array has string
+    values with inconsistent casing (e.g., ``["Yes", "no", "MAYBE"]``).
+
+    Mixed-case enum values are a data quality issue.  The LLM must guess
+    the exact case for each value; mismatches cause validation failures.
+    Pick one casing convention and apply it consistently::
+
+        # bad — mixed casing
+        {"status": {"type": "string", "enum": ["Active", "inactive", "PENDING"]}}
+
+        # good — consistent lowercase
+        {"status": {"type": "string", "enum": ["active", "inactive", "pending"]}}
+
+    Only fires when the enum has 2+ string values with at least 2 distinct
+    case patterns.
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        enum_vals = param_schema.get("enum")
+        if not isinstance(enum_vals, list) or len(enum_vals) < 2:
+            continue
+        str_vals = [v for v in enum_vals if isinstance(v, str) and len(v) > 1]
+        if len(str_vals) < 2:
+            continue
+
+        def _case_pattern(s: str) -> str:
+            if s == s.upper():
+                return "UPPER"
+            if s == s.lower():
+                return "lower"
+            if s[0].isupper() and s[1:] == s[1:].lower():
+                return "Title"
+            return "mixed"
+
+        patterns = {_case_pattern(v) for v in str_vals}
+        if len(patterns) > 1:
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="enum_values_inconsistent_case",
+                message=(
+                    "param '{param}' enum values have inconsistent casing "
+                    "({patterns}) — pick one convention (lowercase recommended)."
+                ).format(
+                    param=param_name,
+                    patterns="/".join(sorted(patterns)),
+                ),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 103: string_minlength_zero
 # ---------------------------------------------------------------------------
 
@@ -6355,6 +6423,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 103: string_minlength_zero
         issues.extend(_check_string_minlength_zero(name, schema))
+
+        # Check 104: enum_values_inconsistent_case
+        issues.extend(_check_enum_values_inconsistent_case(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))

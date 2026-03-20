@@ -96,6 +96,7 @@ from agent_friend.validate import (
     _check_param_uses_schema_ref,
     _check_tool_name_too_generic,
     _check_string_minlength_zero,
+    _check_enum_values_inconsistent_case,
 )
 
 
@@ -10652,4 +10653,57 @@ class TestStringMinlengthZero:
 
     def test_empty_schema_passes(self):
         issues = _check_string_minlength_zero("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 104: enum_values_inconsistent_case
+# ---------------------------------------------------------------------------
+
+
+class TestEnumValuesInconsistentCase:
+    """Tests for _check_enum_values_inconsistent_case (Check 104)."""
+
+    @staticmethod
+    def _schema(param_name: str, enum_vals: list) -> dict:
+        return {
+            "type": "object",
+            "properties": {
+                param_name: {"type": "string", "enum": enum_vals},
+            },
+        }
+
+    def test_mixed_title_lower_fires(self):
+        issues = _check_enum_values_inconsistent_case(
+            "tool", self._schema("status", ["Active", "inactive", "PENDING"])
+        )
+        assert len(issues) == 1
+        assert issues[0].check == "enum_values_inconsistent_case"
+
+    def test_all_lower_passes(self):
+        issues = _check_enum_values_inconsistent_case(
+            "tool", self._schema("status", ["active", "inactive", "pending"])
+        )
+        assert issues == []
+
+    def test_all_upper_passes(self):
+        issues = _check_enum_values_inconsistent_case(
+            "tool", self._schema("status", ["ACTIVE", "INACTIVE", "PENDING"])
+        )
+        assert issues == []
+
+    def test_all_title_passes(self):
+        issues = _check_enum_values_inconsistent_case(
+            "tool", self._schema("status", ["Active", "Inactive", "Pending"])
+        )
+        assert issues == []
+
+    def test_single_value_passes(self):
+        issues = _check_enum_values_inconsistent_case(
+            "tool", self._schema("type", ["json"])
+        )
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_enum_values_inconsistent_case("tool", {})
         assert issues == []
