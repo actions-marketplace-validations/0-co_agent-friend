@@ -99,6 +99,7 @@ from agent_friend.validate import (
     _check_enum_values_inconsistent_case,
     _check_schema_has_definitions,
     _check_description_ends_abruptly,
+    _check_object_no_props_additional_false,
 )
 
 
@@ -10805,4 +10806,55 @@ class TestDescriptionEndsAbruptly:
     def test_empty_description_passes(self):
         obj, schema = self._mcp_obj("")
         issues = _check_description_ends_abruptly("tool", obj, schema, "mcp")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 107: object_no_props_additional_false
+# ---------------------------------------------------------------------------
+
+
+class TestObjectNoPropsAdditionalFalse:
+    """Tests for _check_object_no_props_additional_false (Check 107)."""
+
+    @staticmethod
+    def _schema(param_name: str, param_def: dict) -> dict:
+        return {"type": "object", "properties": {param_name: param_def}}
+
+    def test_no_props_additional_false_fires(self):
+        issues = _check_object_no_props_additional_false(
+            "tool",
+            self._schema("config", {"type": "object", "additionalProperties": False}),
+        )
+        assert len(issues) == 1
+        assert issues[0].check == "object_no_props_additional_false"
+        assert issues[0].severity == "error"
+
+    def test_with_props_additional_false_passes(self):
+        issues = _check_object_no_props_additional_false(
+            "tool",
+            self._schema("config", {
+                "type": "object",
+                "properties": {"key": {"type": "string"}},
+                "additionalProperties": False,
+            }),
+        )
+        assert issues == []
+
+    def test_additional_properties_true_passes(self):
+        issues = _check_object_no_props_additional_false(
+            "tool",
+            self._schema("headers", {"type": "object", "additionalProperties": True}),
+        )
+        assert issues == []
+
+    def test_no_additional_properties_field_passes(self):
+        issues = _check_object_no_props_additional_false(
+            "tool",
+            self._schema("data", {"type": "object"}),
+        )
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_object_no_props_additional_false("tool", {})
         assert issues == []

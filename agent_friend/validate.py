@@ -2478,6 +2478,59 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 107: object_no_props_additional_false
+# ---------------------------------------------------------------------------
+
+
+def _check_object_no_props_additional_false(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 107: object_no_props_additional_false — a parameter has
+    ``type: object``, no ``properties`` defined, and
+    ``additionalProperties: false``.
+
+    This combination means only the empty object ``{}`` is valid — no keys
+    are allowed because no properties are defined and extra properties are
+    forbidden.  This is almost certainly a mistake::
+
+        # bad — only {} is valid
+        {"config": {"type": "object", "additionalProperties": false}}
+
+        # good — define what keys are allowed
+        {"config": {"type": "object",
+                    "properties": {"timeout": {"type": "integer"}},
+                    "additionalProperties": false}}
+
+    Severity: ``error``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        if param_schema.get("type") != "object":
+            continue
+        if "properties" in param_schema:
+            continue  # has properties, fine
+        if param_schema.get("additionalProperties") is False:
+            issues.append(Issue(
+                tool=tool_name,
+                severity="error",
+                check="object_no_props_additional_false",
+                message=(
+                    "param '{param}' has type:object, no properties, and "
+                    "additionalProperties:false — only {{}} is valid; define "
+                    "the allowed properties or remove additionalProperties:false."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 106: description_ends_abruptly
 # ---------------------------------------------------------------------------
 
@@ -6562,6 +6615,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 106: description_ends_abruptly
         issues.extend(_check_description_ends_abruptly(name, raw_obj, schema, fmt))
+
+        # Check 107: object_no_props_additional_false
+        issues.extend(_check_object_no_props_additional_false(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
