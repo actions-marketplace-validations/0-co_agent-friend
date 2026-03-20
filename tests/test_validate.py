@@ -122,6 +122,7 @@ from agent_friend.validate import (
     _check_param_name_has_space,
     _check_schema_type_not_object,
     _check_description_has_trailing_colon,
+    _check_enum_mixed_types,
 )
 
 
@@ -11880,4 +11881,52 @@ class TestDescriptionHasTrailingColon:
 
     def test_no_desc_passes(self):
         issues = self._run()
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 130: enum_mixed_types
+# ---------------------------------------------------------------------------
+
+class TestEnumMixedTypes:
+    def _run(self, enum_vals):
+        schema = {"properties": {"mode": {"type": "string", "enum": enum_vals}}}
+        return _check_enum_mixed_types("tool", schema)
+
+    def test_string_and_boolean_fires(self):
+        issues = self._run(["yes", False, "no"])
+        assert len(issues) == 1
+        assert issues[0].check == "enum_mixed_types"
+        assert issues[0].severity == "warn"
+        assert "boolean" in issues[0].message
+        assert "string" in issues[0].message
+
+    def test_string_and_integer_fires(self):
+        issues = self._run(["1", "2", 3])
+        assert len(issues) == 1
+        assert "integer" in issues[0].message
+
+    def test_all_strings_passes(self):
+        issues = self._run(["asc", "desc", "none"])
+        assert issues == []
+
+    def test_all_integers_passes(self):
+        issues = self._run([1, 2, 3])
+        assert issues == []
+
+    def test_all_booleans_passes(self):
+        issues = self._run([True, False])
+        assert issues == []
+
+    def test_single_value_passes(self):
+        issues = self._run(["only"])
+        assert issues == []
+
+    def test_no_enum_passes(self):
+        schema = {"properties": {"mode": {"type": "string"}}}
+        issues = _check_enum_mixed_types("tool", schema)
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_enum_mixed_types("tool", {})
         assert issues == []

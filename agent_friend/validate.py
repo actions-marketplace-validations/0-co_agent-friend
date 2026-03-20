@@ -2478,6 +2478,81 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 130: enum_mixed_types
+# ---------------------------------------------------------------------------
+
+
+def _check_enum_mixed_types(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 130: enum_mixed_types — an enum contains values of different JSON
+    types (e.g., strings mixed with booleans or numbers).
+
+    Mixed-type enums confuse models and are almost never intentional.  They
+    often arise from copy-paste errors or inconsistent serialization::
+
+        # bad — string and boolean mixed
+        {"enum": ["true", false, "false", true]}
+
+        # bad — string and number mixed
+        {"enum": ["1", "2", 3]}
+
+        # good — all strings
+        {"enum": ["asc", "desc"]}
+        {"enum": ["1", "2", "3"]}
+
+    Severity: ``warn``.
+    """
+    issues: List[Issue] = []
+
+    def _scan(properties: Dict[str, Any], prefix: str = "") -> None:
+        for param, pschema in properties.items():
+            if not isinstance(pschema, dict):
+                continue
+            path = f"{prefix}{param}" if not prefix else f"{prefix}.{param}"
+            enum_vals = pschema.get("enum")
+            if isinstance(enum_vals, list) and len(enum_vals) >= 2:
+                types_seen = set()
+                for v in enum_vals:
+                    if isinstance(v, bool):
+                        types_seen.add("boolean")
+                    elif isinstance(v, int):
+                        types_seen.add("integer")
+                    elif isinstance(v, float):
+                        types_seen.add("number")
+                    elif isinstance(v, str):
+                        types_seen.add("string")
+                    elif v is None:
+                        types_seen.add("null")
+                if len(types_seen) > 1:
+                    issues.append(
+                        Issue(
+                            tool=tool_name,
+                            severity="warn",
+                            check="enum_mixed_types",
+                            message=(
+                                "tool '{name}' param '{param}' enum has mixed "
+                                "types ({types}) — all enum values should be "
+                                "the same JSON type."
+                            ).format(
+                                name=tool_name,
+                                param=path,
+                                types=", ".join(sorted(types_seen)),
+                            ),
+                        )
+                    )
+            nested_props = pschema.get("properties")
+            if isinstance(nested_props, dict):
+                _scan(nested_props, path)
+
+    props = schema.get("properties")
+    if isinstance(props, dict):
+        _scan(props)
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 129: description_has_trailing_colon
 # ---------------------------------------------------------------------------
 
@@ -7882,6 +7957,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 129: description_has_trailing_colon
         issues.extend(_check_description_has_trailing_colon(name, raw_obj, schema, fmt))
+
+        # Check 130: enum_mixed_types
+        issues.extend(_check_enum_mixed_types(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
