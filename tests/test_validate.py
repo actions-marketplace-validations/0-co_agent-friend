@@ -117,6 +117,7 @@ from agent_friend.validate import (
     _check_required_param_not_in_properties,
     _check_param_name_has_double_underscore,
     _check_param_name_starts_with_underscore,
+    _check_param_name_is_number,
 )
 
 
@@ -11671,4 +11672,44 @@ class TestParamNameStartsWithUnderscore:
 
     def test_empty_schema_passes(self):
         issues = _check_param_name_starts_with_underscore("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 125: param_name_is_number
+# ---------------------------------------------------------------------------
+
+
+class TestParamNameIsNumber:
+    """Tests for _check_param_name_is_number (Check 125)."""
+
+    @staticmethod
+    def _schema(*param_names: str) -> dict:
+        return {
+            "type": "object",
+            "properties": {n: {"type": "string", "description": "A param."} for n in param_names},
+        }
+
+    def test_zero_fires(self):
+        issues = _check_param_name_is_number("tool", self._schema("0"))
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_is_number"
+        assert issues[0].severity == "error"
+
+    def test_integer_fires(self):
+        issues = _check_param_name_is_number("tool", self._schema("42"))
+        assert len(issues) == 1
+        assert "42" in issues[0].message
+
+    def test_string_name_passes(self):
+        issues = _check_param_name_is_number("tool", self._schema("count", "id"))
+        assert issues == []
+
+    def test_name_with_digits_passes(self):
+        # Names with digits but not purely numeric
+        issues = _check_param_name_is_number("tool", self._schema("field1", "v2"))
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_is_number("tool", {})
         assert issues == []

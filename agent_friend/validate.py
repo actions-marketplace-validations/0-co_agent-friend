@@ -2478,6 +2478,53 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 125: param_name_is_number
+# ---------------------------------------------------------------------------
+
+
+def _check_param_name_is_number(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 125: param_name_is_number — a parameter name is a numeric string
+    (e.g., ``"0"``, ``"1"``, ``"42"``).
+
+    Numeric parameter names are invalid in most tool schema implementations.
+    They cannot be used as Python keyword arguments, are confusing for models,
+    and indicate the schema was auto-generated from an array or incorrect
+    source structure::
+
+        # bad — numeric param names
+        {"0": {"type": "string", ...}}
+        {"1": {"type": "integer", ...}}
+        {"42": {"type": "boolean", ...}}
+
+        # good — named params
+        {"first_arg": {"type": "string", ...}}
+        {"count": {"type": "integer", ...}}
+
+    Severity: ``error``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name in properties:
+        if isinstance(param_name, str) and param_name.lstrip("-").isdigit():
+            issues.append(Issue(
+                tool=tool_name,
+                severity="error",
+                check="param_name_is_number",
+                message=(
+                    "param '{param}' is a numeric name — use a descriptive "
+                    "name; numeric params cannot be passed as keyword "
+                    "arguments."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
 # Check 124: param_name_starts_with_underscore
 # ---------------------------------------------------------------------------
 
@@ -7612,6 +7659,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 124: param_name_starts_with_underscore
         issues.extend(_check_param_name_starts_with_underscore(name, schema))
+
+        # Check 125: param_name_is_number
+        issues.extend(_check_param_name_is_number(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
