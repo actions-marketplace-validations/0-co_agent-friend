@@ -3225,6 +3225,69 @@ def _check_string_type_describes_json(
 
 
 # ---------------------------------------------------------------------------
+# Check 92: object_param_no_properties
+# ---------------------------------------------------------------------------
+
+
+def _check_object_param_no_properties(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 92: object_param_no_properties — a parameter has ``type: object``
+    but no ``properties`` field is defined.
+
+    An unstructured object gives the LLM no guidance on what keys to provide.
+    Without a properties schema the LLM must guess, leading to hallucinated
+    keys, missing required fields, and no validation.  Even a minimal
+    properties definition is better than none::
+
+        # bad — completely opaque; LLM must guess the structure
+        {"config": {"type": "object", "description": "Configuration options."}}
+
+        # good — structure declared
+        {"config": {"type": "object",
+                    "properties": {"timeout": {"type": "integer"}},
+                    "required": ["timeout"]}}
+
+    Does not fire when ``additionalProperties`` is set (the author is
+    intentionally allowing a free-form map) or when the param also defines
+    ``oneOf``/``anyOf``/``allOf`` (which imply structure).
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        if param_schema.get("type") != "object":
+            continue
+        # Skip if already has properties
+        if "properties" in param_schema:
+            continue
+        # Skip if additionalProperties is explicitly set (free-form map)
+        if "additionalProperties" in param_schema:
+            continue
+        # Skip if complex composition used
+        if any(k in param_schema for k in ("oneOf", "anyOf", "allOf")):
+            continue
+        issues.append(Issue(
+            tool=tool_name,
+            severity="warn",
+            check="object_param_no_properties",
+            message=(
+                "param '{param}' has type object but no properties defined "
+                "— add a properties schema so the model knows what keys to "
+                "provide."
+            ).format(param=param_name),
+        ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -5807,6 +5870,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 91: string_type_describes_json
         issues.extend(_check_string_type_describes_json(name, schema))
+
+        # Check 92: object_param_no_properties
+        issues.extend(_check_object_param_no_properties(name, schema))
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.

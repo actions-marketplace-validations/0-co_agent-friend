@@ -84,6 +84,7 @@ from agent_friend.validate import (
     _check_description_has_html,
     _check_description_starts_with_param_name,
     _check_string_type_describes_json,
+    _check_object_param_no_properties,
 )
 
 
@@ -10082,4 +10083,58 @@ class TestStringTypeDescribesJson:
 
     def test_empty_schema_passes(self):
         issues = _check_string_type_describes_json("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 92: object_param_no_properties
+# ---------------------------------------------------------------------------
+
+
+class TestObjectParamNoProperties:
+    """Tests for _check_object_param_no_properties (Check 92)."""
+
+    @staticmethod
+    def _schema(param_name: str, param_def: dict) -> dict:
+        return {"type": "object", "properties": {param_name: param_def}}
+
+    def test_object_no_properties_fires(self):
+        issues = _check_object_param_no_properties(
+            "tool",
+            self._schema("config", {"type": "object", "description": "Config options."})
+        )
+        assert len(issues) == 1
+        assert issues[0].check == "object_param_no_properties"
+        assert issues[0].severity == "warn"
+
+    def test_object_with_properties_passes(self):
+        issues = _check_object_param_no_properties(
+            "tool",
+            self._schema("config", {"type": "object", "properties": {"key": {"type": "string"}}})
+        )
+        assert issues == []
+
+    def test_additional_properties_skip(self):
+        issues = _check_object_param_no_properties(
+            "tool",
+            self._schema("headers", {"type": "object", "additionalProperties": {"type": "string"}})
+        )
+        assert issues == []
+
+    def test_anyof_skip(self):
+        issues = _check_object_param_no_properties(
+            "tool",
+            self._schema("data", {"type": "object", "anyOf": [{"properties": {"x": {}}}]})
+        )
+        assert issues == []
+
+    def test_string_type_does_not_fire(self):
+        issues = _check_object_param_no_properties(
+            "tool",
+            self._schema("name", {"type": "string", "description": "A name."})
+        )
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_object_param_no_properties("tool", {})
         assert issues == []
