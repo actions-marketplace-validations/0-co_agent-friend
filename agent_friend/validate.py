@@ -1984,6 +1984,49 @@ def _check_param_name_too_long(tool_name: str, schema: Dict[str, Any]) -> List[I
 
 
 # ---------------------------------------------------------------------------
+# Check 74: description_word_repetition
+# ---------------------------------------------------------------------------
+
+_WORD_REPEAT_RE = re.compile(r'\b(\w{3,})\s+\1\b', re.IGNORECASE)
+
+
+def _check_description_word_repetition(name: str, obj: Dict[str, Any], fmt: str) -> Optional[Issue]:
+    """Check 74: description_word_repetition — tool description contains
+    consecutive repeated words (e.g. "search search", "the the").
+
+    Repeated words are almost always a copy-paste or editing error.  They
+    waste tokens and reduce description clarity.
+
+    Fires when: the tool description contains two adjacent identical words
+    (≥ 3 characters each, case-insensitive).
+
+    Examples::
+
+        # flagged
+        "Searches the the repository for matching files"
+        "Execute execute the given shell command"
+
+        # correct
+        "Searches the repository for matching files"
+    """
+    desc = _get_tool_description(obj, fmt)
+    if not desc or not isinstance(desc, str):
+        return None
+    m = _WORD_REPEAT_RE.search(desc)
+    if not m:
+        return None
+    word = m.group(1)
+    return Issue(
+        tool=name,
+        severity="warn",
+        check="description_word_repetition",
+        message=(
+            "tool description contains repeated word '{word}' — remove the duplicate."
+        ).format(word=word.lower()),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Check 71: schema_has_title_field
 # ---------------------------------------------------------------------------
 
@@ -4505,6 +4548,11 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 73: param_name_too_long
         issues.extend(_check_param_name_too_long(name, schema))
+
+        # Check 74: description_word_repetition
+        issue = _check_description_word_repetition(name, raw_obj, fmt)
+        if issue is not None:
+            issues.append(issue)
 
         # Note: check 52 (number_should_be_integer) is subsumed by check 40
         # (number_type_for_integer) — merged into check 40 in v0.103.1.
