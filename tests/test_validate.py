@@ -134,6 +134,7 @@ from agent_friend.validate import (
     _check_param_name_describes_output,
     _check_tool_count_exceeds_limit,
     _check_description_has_numbered_list,
+    _check_description_has_bullet_list,
 )
 
 
@@ -12400,6 +12401,52 @@ class TestDescriptionHasNumberedList:
 
     def test_number_in_middle_passes(self):
         issues = self._run(tool_desc="Returns up to 100 results.")
+        assert issues == []
+
+    def test_empty_passes(self):
+        issues = self._run(tool_desc="")
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 142: description_has_bullet_list
+# ---------------------------------------------------------------------------
+
+class TestDescriptionHasBulletList:
+    def _run(self, tool_desc=None, param_desc=None):
+        obj = {}
+        if tool_desc is not None:
+            obj["description"] = tool_desc
+        schema = {}
+        if param_desc is not None:
+            schema["properties"] = {"x": {"type": "string", "description": param_desc}}
+        return _check_description_has_bullet_list("tool", obj, schema, "mcp")
+
+    def test_dash_bullet_fires(self):
+        issues = self._run(tool_desc="Manage files.\n- Create files\n- Delete files")
+        assert len(issues) == 1
+        assert issues[0].check == "description_has_bullet_list"
+        assert issues[0].severity == "warn"
+
+    def test_asterisk_bullet_fires(self):
+        issues = self._run(tool_desc="Features:\n* Fast\n* Reliable")
+        assert len(issues) == 1
+
+    def test_bullet_char_fires(self):
+        issues = self._run(tool_desc="Options:\n• fast\n• slow")
+        assert len(issues) == 1
+
+    def test_param_bullet_fires(self):
+        issues = self._run(param_desc="Modes:\n- fast\n- slow")
+        assert len(issues) == 1
+        assert "x" in issues[0].message
+
+    def test_plain_sentence_passes(self):
+        issues = self._run(tool_desc="Create, delete, or move files.")
+        assert issues == []
+
+    def test_dash_in_text_passes(self):
+        issues = self._run(tool_desc="A well-formed request returns JSON.")
         assert issues == []
 
     def test_empty_passes(self):
