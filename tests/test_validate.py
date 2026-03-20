@@ -100,6 +100,7 @@ from agent_friend.validate import (
     _check_schema_has_definitions,
     _check_description_ends_abruptly,
     _check_object_no_props_additional_false,
+    _check_array_items_empty_schema,
 )
 
 
@@ -10857,4 +10858,47 @@ class TestObjectNoPropsAdditionalFalse:
 
     def test_empty_schema_passes(self):
         issues = _check_object_no_props_additional_false("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 108: array_items_empty_schema
+# ---------------------------------------------------------------------------
+
+
+class TestArrayItemsEmptySchema:
+    """Tests for _check_array_items_empty_schema (Check 108)."""
+
+    @staticmethod
+    def _schema(param_name: str, param_def: dict) -> dict:
+        return {"type": "object", "properties": {param_name: param_def}}
+
+    def test_empty_items_fires(self):
+        issues = _check_array_items_empty_schema(
+            "tool", self._schema("tags", {"type": "array", "items": {}})
+        )
+        assert len(issues) == 1
+        assert issues[0].check == "array_items_empty_schema"
+        assert issues[0].severity == "warn"
+
+    def test_typed_items_passes(self):
+        issues = _check_array_items_empty_schema(
+            "tool", self._schema("tags", {"type": "array", "items": {"type": "string"}})
+        )
+        assert issues == []
+
+    def test_no_items_passes(self):
+        issues = _check_array_items_empty_schema(
+            "tool", self._schema("tags", {"type": "array"})
+        )
+        assert issues == []
+
+    def test_non_array_passes(self):
+        issues = _check_array_items_empty_schema(
+            "tool", self._schema("count", {"type": "integer"})
+        )
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_array_items_empty_schema("tool", {})
         assert issues == []

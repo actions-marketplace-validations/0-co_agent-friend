@@ -2478,6 +2478,54 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 108: array_items_empty_schema
+# ---------------------------------------------------------------------------
+
+
+def _check_array_items_empty_schema(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 108: array_items_empty_schema — an array parameter has an empty
+    ``items`` schema (``{}``), meaning the array can contain any value.
+
+    An empty items schema provides no type or constraint information.
+    The LLM must guess what to put in the array.  Even a simple
+    ``"items": {"type": "string"}`` is better than nothing::
+
+        # bad — items can be anything
+        {"tags": {"type": "array", "items": {}}}
+
+        # good — explicit item type
+        {"tags": {"type": "array", "items": {"type": "string"}}}
+
+    Severity: ``warn``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name, param_schema in properties.items():
+        if not isinstance(param_schema, dict):
+            continue
+        if param_schema.get("type") != "array":
+            continue
+        items = param_schema.get("items")
+        if items == {}:
+            issues.append(Issue(
+                tool=tool_name,
+                severity="warn",
+                check="array_items_empty_schema",
+                message=(
+                    "param '{param}' has items: {{}} — specify the item type "
+                    "(e.g., items: {{type: string}})."
+                ).format(param=param_name),
+            ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Check 107: object_no_props_additional_false
 # ---------------------------------------------------------------------------
 
@@ -6618,6 +6666,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 107: object_no_props_additional_false
         issues.extend(_check_object_no_props_additional_false(name, schema))
+
+        # Check 108: array_items_empty_schema
+        issues.extend(_check_array_items_empty_schema(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
