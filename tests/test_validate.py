@@ -113,6 +113,7 @@ from agent_friend.validate import (
     _check_description_uses_first_person,
     _check_description_has_json_example,
     _check_required_not_array,
+    _check_param_name_all_uppercase,
 )
 
 
@@ -11488,4 +11489,48 @@ class TestRequiredNotArray:
 
     def test_empty_schema_passes(self):
         issues = _check_required_not_array("tool", {})
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Check 121: param_name_all_uppercase
+# ---------------------------------------------------------------------------
+
+
+class TestParamNameAllUppercase:
+    """Tests for _check_param_name_all_uppercase (Check 121)."""
+
+    @staticmethod
+    def _schema(*param_names: str) -> dict:
+        return {
+            "type": "object",
+            "properties": {n: {"type": "string", "description": "A param."} for n in param_names},
+        }
+
+    def test_all_caps_fires(self):
+        issues = _check_param_name_all_uppercase("tool", self._schema("API_KEY"))
+        assert len(issues) == 1
+        assert issues[0].check == "param_name_all_uppercase"
+        assert issues[0].severity == "error"
+
+    def test_all_caps_with_digits_fires(self):
+        issues = _check_param_name_all_uppercase("tool", self._schema("MAX_RETRIES_3"))
+        assert len(issues) == 1
+        assert "max_retries_3" in issues[0].message
+
+    def test_all_caps_single_word_fires(self):
+        issues = _check_param_name_all_uppercase("tool", self._schema("FORMAT"))
+        assert len(issues) == 1
+
+    def test_snake_case_passes(self):
+        issues = _check_param_name_all_uppercase("tool", self._schema("api_key", "max_retries"))
+        assert issues == []
+
+    def test_mixed_case_passes(self):
+        # camelCase has lowercase letters — check 113 handles those
+        issues = _check_param_name_all_uppercase("tool", self._schema("apiKey"))
+        assert issues == []
+
+    def test_empty_schema_passes(self):
+        issues = _check_param_name_all_uppercase("tool", {})
         assert issues == []

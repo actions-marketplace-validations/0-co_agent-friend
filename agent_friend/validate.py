@@ -2478,6 +2478,61 @@ def _check_tool_name_too_generic(tool_name: str) -> Optional[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Check 121: param_name_all_uppercase
+# ---------------------------------------------------------------------------
+
+
+def _check_param_name_all_uppercase(
+    tool_name: str,
+    schema: Dict[str, Any],
+) -> List[Issue]:
+    """Check 121: param_name_all_uppercase — a parameter name is written in
+    ALL_CAPS or ALL_UPPERCASE_WITH_UNDERSCORES style.
+
+    MCP parameter names must be lowercase snake_case.  ALL_CAPS names are a
+    convention from environment variables and constants, not tool schemas::
+
+        # bad — ALL_CAPS param names
+        {"API_KEY": {"type": "string", ...}}
+        {"MAX_RETRIES": {"type": "integer", ...}}
+        {"USER_ID": {"type": "string", ...}}
+
+        # good — snake_case param names
+        {"api_key": {"type": "string", ...}}
+        {"max_retries": {"type": "integer", ...}}
+        {"user_id": {"type": "string", ...}}
+
+    Severity: ``error``.
+    """
+    issues = []
+    properties = schema.get("properties", {})
+    if not isinstance(properties, dict):
+        return issues
+
+    for param_name in properties:
+        # A name is ALL_CAPS if it has at least 2 chars, contains at least
+        # one letter, all letters are uppercase, and no lowercase letters
+        if (
+            len(param_name) >= 2
+            and any(c.isalpha() for c in param_name)
+            and not any(c.islower() for c in param_name)
+            and all(c.isupper() or c == "_" or c.isdigit() for c in param_name)
+        ):
+            issues.append(Issue(
+                tool=tool_name,
+                severity="error",
+                check="param_name_all_uppercase",
+                message=(
+                    "param '{param}' is ALL_CAPS — MCP parameter names must "
+                    "be lowercase snake_case (e.g., '{lower}')."
+                ).format(
+                    param=param_name,
+                    lower=param_name.lower(),
+                ),
+            ))
+    return issues
+
+
 # Check 120: required_not_array
 # ---------------------------------------------------------------------------
 
@@ -7400,6 +7455,9 @@ def validate_tools(data: Any) -> Tuple[List[Issue], Dict[str, Any]]:
 
         # Check 120: required_not_array
         issues.extend(_check_required_not_array(name, schema))
+
+        # Check 121: param_name_all_uppercase
+        issues.extend(_check_param_name_all_uppercase(name, schema))
 
         # Check 35: description_redundant_type
         issues.extend(_check_description_redundant_type(name, schema))
