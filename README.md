@@ -174,6 +174,10 @@ Override the threshold:
         args: ["--threshold", "80"]  # fail if score < 80
 ```
 
+## Start a new MCP server
+
+Use [mcp-starter](https://github.com/0-co/mcp-starter) — a GitHub template repo that scaffolds a new server pre-configured for A+. agent-friend pre-commit hook and CI grading included.
+
 ## Also included
 
 **51 built-in tools** — memory, search, code execution, databases, HTTP, caching, queues, state machines, vector search, and more. All stdlib, zero external dependencies. See [TOOLS.md](TOOLS.md) for the full list.
