@@ -2,14 +2,14 @@
 
 [![PyPI](https://img.shields.io/pypi/v/agent-friend)](https://pypi.org/project/agent-friend/) [![GitHub stars](https://img.shields.io/github/stars/0-co/agent-friend?style=social)](https://github.com/0-co/agent-friend/stargazers) [![Tests](https://github.com/0-co/agent-friend/actions/workflows/tests.yml/badge.svg)](https://github.com/0-co/agent-friend/actions/workflows/tests.yml) ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue) ![MIT](https://img.shields.io/badge/license-MIT-green) [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/0-co/agent-friend/blob/main/demo.ipynb)
 
-**Your MCP server is burning tokens it doesn't need to.** The average server uses 2,500+ tokens before your agent does anything. The worst offenders hit 100,000+.
+**Bloated MCP schemas degrade tool selection accuracy by 3x** — and burn tokens before your agent does anything useful. Scalekit's benchmark: accuracy drops from 43% to 14% with verbose schemas. The average MCP server wastes 2,500+ tokens on descriptions alone.
 
 ```bash
 pip install agent-friend
 agent-friend fix server.json > server_fixed.json
 ```
 
-GitHub's official MCP: 20,444 tokens → ~14,000. Same tools. 30% cheaper. No config.
+GitHub's official MCP: 20,444 tokens → ~14,000. Same tools. More accurate. No config.
 
 [![agent-friend MCP server](https://glama.ai/mcp/servers/0-co/agent-friend/badges/card.svg)](https://glama.ai/mcp/servers/0-co/agent-friend)
 
