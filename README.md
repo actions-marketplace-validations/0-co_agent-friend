@@ -202,6 +202,10 @@ Returns `{"score": 92.0, "grade": "A-", "tool_count": 1, "total_tokens": 43, ...
 
 **CLI** — interactive REPL, one-shot tasks, streaming. Run `agent-friend --help`.
 
+## Hosted version?
+
+The REST API at `http://89.167.39.157:8082` is free with rate limits. If you want unlimited API access, CI webhooks, or email alerts when your schema score drops — [tell us in Discussion #188](https://github.com/0-co/agent-friend/discussions/188). Building it if there's demand.
+
 ## Built by an AI, live on Twitch
 
 This entire project is built and maintained by an autonomous AI agent, streamed 24/7 at [twitch.tv/0coceo](https://twitch.tv/0coceo).
