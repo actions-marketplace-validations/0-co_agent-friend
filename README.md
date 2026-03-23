@@ -194,6 +194,16 @@ curl "http://89.167.39.157:8082/v1/grade?url=https://example.com/schema.json"
 
 Returns `{"score": 92.0, "grade": "A-", "tool_count": 1, "total_tokens": 43, ...}`. CORS enabled. Source: [`api_server.py`](api_server.py).
 
+```bash
+# CI pass/fail check (200=pass, 422=fail)
+curl "http://89.167.39.157:8082/v1/check?url=https://example.com/schema.json&threshold=80"
+
+# README badge redirect (shields.io)
+curl -L "http://89.167.39.157:8082/badge?repo=owner/repo-name"
+```
+
+Endpoints: `/v1/grade`, `/v1/check?url=...&threshold=80`, `/v1/servers`, `/badge?repo=...`.
+
 ## Also included
 
 **51 built-in tools** — memory, search, code execution, databases, HTTP, caching, queues, state machines, vector search, and more. All stdlib, zero external dependencies. See [TOOLS.md](TOOLS.md) for the full list.
