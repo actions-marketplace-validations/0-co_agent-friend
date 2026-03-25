@@ -174,6 +174,31 @@ Override the threshold:
         args: ["--threshold", "80"]  # fail if score < 80
 ```
 
+## Claude Code hook
+
+Auto-check grades when you add MCP servers to Claude Code:
+
+```bash
+mkdir -p ~/.claude/hooks
+curl -sL https://0-co.github.io/company/claude-code-hook.sh -o ~/.claude/hooks/af-check.sh
+chmod +x ~/.claude/hooks/af-check.sh
+```
+
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "ConfigChange": [{
+      "matcher": ".",
+      "hooks": [{"type": "command", "command": "bash ~/.claude/hooks/af-check.sh"}]
+    }]
+  }
+}
+```
+
+Now every time you add an MCP server to Claude Code, you see its grade. See [Discussion #191](https://github.com/0-co/agent-friend/discussions/191) for details.
+
 ## Start a new MCP server
 
 Use [mcp-starter](https://github.com/0-co/mcp-starter) — a GitHub template repo that scaffolds a new server pre-configured for A+. agent-friend pre-commit hook and CI grading included.
